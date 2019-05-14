@@ -1,6 +1,6 @@
 //=============================================================================================================
 /**
-* @file     tfplot.cpp
+* @file     tpplot.cpp
 * @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
 *           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
 * @version  1.0
@@ -29,11 +29,11 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* @brief    Declaration of time-frequency plot class.
+* @brief    Declaration of topo plot class.
 */
 
-#ifndef TFPLOT_H
-#define TFPLOT_H
+#ifndef TPPLOT_H
+#define TPPLOT_H
 
 //*************************************************************************************************************
 //=============================================================================================================
@@ -62,9 +62,21 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <unsupported/Eigen/FFT>
+#include <unsupported/Eigen/Splines>
 
 namespace DISPLIB
 {
+
+struct InterpolationInputData {
+    Eigen::MatrixXd maInputData;
+    quint32 iRangeLow;
+    quint32 iRangeHigh;
+    QList<QPoint> coors;
+    qint32 x;
+    qint32 y;
+
+    //qint32 window_size;
+};
 
 //*************************************************************************************************************
 //=============================================================================================================
@@ -72,99 +84,42 @@ namespace DISPLIB
 //=============================================================================================================
 
 using namespace Eigen;
-//using namespace UTILSLIB;
 
-/*
-enum ColorMaps
+class DISPSHARED_EXPORT Tpplot
 {
-    Hot,
-    HotNeg1,
-    HotNeg2,
-    Jet,
-    Bone,
-    RedBlue
-};
-*/
-
-class DISPSHARED_EXPORT TFplot : public QWidget
-{
-
 public:
-    //=========================================================================================================
-    /**
-    * TFplot_TFplot
-    *
-    * ### display tf-plot function ###
-    *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
-    */
-    TFplot();
+    Tpplot();
+
+    QMap<QString,QPoint> createMapGrid(QMap<QString,QPointF> layoutMap, QSize topo_matrix_size);
+    MatrixXd normSignal(MatrixXd signalMatrix);
+    MatrixXd createGridPointMatrix(MatrixXd normSignal, QMap<QString, QPoint> mapGrid, QSize gridPointMatrixSize, qint32 timeSample);
+    QImage * creatPlotImage(MatrixXd topoMatrix, QSize imageSize, ColorMaps cmap, bool nomalization);
+    MatrixXd calcNearestNeighboursInterpolation(MatrixXd topoMatrix, QMap<QString,QPoint> mapGrid);
+    MatrixXd calcBilinearInterpolation(MatrixXd topoMatrix, QMap<QString, QPoint> mapGrid);
 
     //=========================================================================================================
     /**
-    * TFplot_TFplot
+    * Calculates the spectogram matrix for a given input data matrix.
     *
-    * ### display tf-plot function ###
+    * @param[in] data       The input data.
     *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] lower_frq         lower bound frequency, that should be plotted
-    *  @param[in] upper_frq         upper bound frequency, that should be plotted
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *
+    * @return               The spectogram matrix.
     */
-    TFplot(MatrixXd tf_matrix, qreal sample_rate, qreal lower_frq, qreal upper_frq, ColorMaps cmap);
+    static Eigen::MatrixXd computeyxf(const InterpolationInputData& data);
+
+    static Eigen::MatrixXd computexyf(const InterpolationInputData& data);
 
     //=========================================================================================================
     /**
-    * TFplot_TFplot
+    * Sums up (reduces) the in parallel processed spectogram matrix.
     *
-    * ### display tf-plot function ###
-    *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *
+    * @param[out] resultData    The result data.
+    * @param[in]  data          The incoming, temporary result data.
     */
-    TFplot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap);
-
-    //=========================================================================================================
-    QImage * creatTFPlotImage(MatrixXd tf_matrix, QSize imageSize, ColorMaps cmap);
-
-private:
-
-    //=========================================================================================================
-    /**
-    * TFplot_calc_plot
-    *
-    * ### display tf-plot function ###
-    *
-    * calculates a image to plot the tf_matrix
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *  @param[in] lower_frq         lower bound frequency, that should be plotted
-    *  @param[in] upper_frq         upper bound frequency, that should be plotted
-    *
-    */
-    void calc_plot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap, qreal lower_frq, qreal upper_frq);
-
-protected:
-     virtual void resizeEvent(QResizeEvent *event);
+    static void reduce(Eigen::MatrixXd &resultData,
+                       const Eigen::MatrixXd &data);
 };
 
 }
 
-#endif // TFPLOT_H
+#endif // TPPLOT_H

@@ -101,6 +101,7 @@ SOURCES += \
     plots/plot.cpp \
     plots/graph.cpp \
     plots/tfplot.cpp \
+    plots/tpplot.cpp \
     plots/helpers/colormap.cpp \
     viewers/filterdesignview.cpp \
     viewers/averagelayoutview.cpp \
@@ -127,6 +128,8 @@ SOURCES += \
     viewers/artifactsettingsview.cpp \
     viewers/helpers/evokedsetmodel.cpp \
     viewers/helpers/layoutscene.cpp \
+    viewers/helpers/tfplotsceneitem.cpp \
+    viewers/helpers/tfplotscene.cpp \
     viewers/helpers/averagescene.cpp \
     viewers/helpers/averagesceneitem.cpp \
     viewers/helpers/filterplotscene.cpp \
@@ -139,11 +142,16 @@ SOURCES += \
     viewers/helpers/frequencyspectrummodel.cpp \
     viewers/helpers/channeldatamodel.cpp \
     viewers/helpers/channeldatadelegate.cpp \
+    viewers/helpers/tfplotscene.cpp \
+    viewers/helpers/tfplotsceneitem.cpp \
+    viewers/helpers/tfplotscene.cpp \
+    viewers/helpers/tfplotsceneitem.cpp
 
 HEADERS += \
     disp_global.h \
     plots/imagesc.h \
     plots/plot.h \
+    plots/tpplot.h \
     plots/graph.h \
     plots/tfplot.h \
     plots/helpers/colormap.h \
@@ -172,6 +180,8 @@ HEADERS += \
     viewers/artifactsettingsview.h \
     viewers/helpers/evokedsetmodel.h \
     viewers/helpers/layoutscene.h \
+    viewers/helpers/tfplotsceneitem.h \
+    viewers/helpers/tfplotscene.h \
     viewers/helpers/averagescene.h \
     viewers/helpers/averagesceneitem.h \
     viewers/helpers/filterplotscene.h \
@@ -184,6 +194,8 @@ HEADERS += \
     viewers/helpers/frequencyspectrummodel.h \
     viewers/helpers/channeldatamodel.h \
     viewers/helpers/channeldatadelegate.h \
+    viewers/helpers/tfplotscene.h \
+    viewers/helpers/tfplotsceneitem.h
 
 qtHaveModule(charts) {
     SOURCES += \

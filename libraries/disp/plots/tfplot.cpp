@@ -29,7 +29,7 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* @brief    TFplot class definition.
+* @brief    Implementation of time-frequency plot class.
 */
 
 //*************************************************************************************************************
@@ -38,26 +38,7 @@
 //=============================================================================================================
 
 #include "tfplot.h"
-
-#include "helpers/colormap.h"
-
-
-//*************************************************************************************************************
-//=============================================================================================================
-// Qt INCLUDES
-//=============================================================================================================
-
-#include <QGridLayout>
-#include <QGraphicsView>
-#include <QGraphicsPixmapItem>
-#include <QDebug>
-
-
-//*************************************************************************************************************
-//=============================================================================================================
-// Eigen INCLUDES
-//=============================================================================================================
-
+#include "math.h"
 
 //*************************************************************************************************************
 //=============================================================================================================
@@ -66,24 +47,18 @@
 
 using namespace DISPLIB;
 
+TFplot::TFplot()
+{}
 
-//*************************************************************************************************************
-//=============================================================================================================
-// DEFINE MEMBER METHODS
-//=============================================================================================================
-
-TFplot::TFplot(Eigen::MatrixXd tf_matrix,
-               qreal sample_rate,
-               qreal lower_frq,
-               qreal upper_frq,
-               ColorMaps cmap = Jet)
+TFplot::TFplot(MatrixXd tf_matrix, qreal sample_rate, qreal lower_frq, qreal upper_frq, ColorMaps cmap = Jet)
 {
     qreal max_frq = sample_rate/2.0;
     qreal frq_per_px = max_frq/tf_matrix.rows();
 
     if(upper_frq > max_frq || upper_frq <= 0) upper_frq = max_frq;
     if(lower_frq < 0 || lower_frq >= max_frq) lower_frq = 0;
-    if(upper_frq < lower_frq) {
+    if(upper_frq < lower_frq)
+    {
         qreal temp = upper_frq;
         upper_frq = lower_frq;
         lower_frq = temp;
@@ -92,12 +67,11 @@ TFplot::TFplot(Eigen::MatrixXd tf_matrix,
     qint32 lower_px = floor(lower_frq / frq_per_px);
     qint32 upper_px = floor(upper_frq / frq_per_px);
 
-    Eigen::MatrixXd zoomed_tf_matrix = Eigen::MatrixXd::Zero(upper_px-lower_px, tf_matrix.cols());
-    //How to print to console here
-    //printf(("fff   "+QString::number(zoomed_tf_matrix(12,12))).toUtf8().data());// << ";  " << zoomed_tf_matrix.rows(2) << ";   ";
+    MatrixXd zoomed_tf_matrix = MatrixXd::Zero(upper_px-lower_px, tf_matrix.cols());
 
     qint32 pxls = 0;
-    for(qint32 it = lower_px; it < upper_px; it++) {
+    for(qint32 it = lower_px; it < upper_px; it++)
+    {
         zoomed_tf_matrix.row(pxls) = tf_matrix.row(it);
         pxls++;
     }
@@ -107,29 +81,21 @@ TFplot::TFplot(Eigen::MatrixXd tf_matrix,
     calc_plot(zoomed_tf_matrix, sample_rate, cmap, lower_frq, upper_frq);
 }
 
+//-----------------------------------------------------------------------------------------------------------------
 
-//*************************************************************************************************************
-
-TFplot::TFplot(Eigen::MatrixXd tf_matrix,
-               qreal sample_rate,
-               ColorMaps cmap = Jet)
-{   
+TFplot::TFplot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap = Jet)
+{
     calc_plot(tf_matrix, sample_rate, cmap, 0, 0);
 }
 
+//-----------------------------------------------------------------------------------------------------------------
 
-//*************************************************************************************************************
-
-void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
-                       qreal sample_rate,
-                       ColorMaps cmap,
-                       qreal lower_frq = 0,
-                       qreal upper_frq = 0)
+void TFplot::calc_plot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap, qreal lower_frq = 0, qreal upper_frq = 0)
 {
     //normalisation of the tf-matrix
     qreal norm1 = tf_matrix.maxCoeff();
     qreal mnorm = tf_matrix.minCoeff();
-    if(std::fabs(mnorm) > norm1) norm1 = mnorm;
+    if(abs(mnorm) > norm1) norm1 = mnorm;
     tf_matrix /= norm1;
 
     //setup image
@@ -137,45 +103,47 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
 
     //setup pixelcolors in image
     QColor color;
-    for ( qint32 y = 0; y < tf_matrix.rows(); y++ ) {
-        for ( qint32 x = 0; x < tf_matrix.cols(); x++ ) {
-            switch  (cmap) {
+    for ( qint32 y = 0; y < tf_matrix.rows(); y++ )
+        for ( qint32 x = 0; x < tf_matrix.cols(); x++ )
+        {
+            switch  (cmap)
+            {
                 case Jet:
-                    color.setRgb(ColorMap::valueToJet(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToJet(abs(tf_matrix(y, x))));
                     break;
                 case Hot:
-                    color.setRgb(ColorMap::valueToHot(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToHot(abs(tf_matrix(y, x))));
                     break;
                 case HotNeg1:
-                    color.setRgb(ColorMap::valueToHotNegative1(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToHotNegative1(abs(tf_matrix(y, x))));
                     break;
                 case HotNeg2:
-                    color.setRgb(ColorMap::valueToHotNegative2(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToHotNegative2(abs(tf_matrix(y, x))));
                     break;
                 case Bone:
-                    color.setRgb(ColorMap::valueToBone(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToBone(abs(tf_matrix(y, x))));
                     break;
                 case RedBlue:
-                    color.setRgb(ColorMap::valueToRedBlue(std::fabs(tf_matrix(y, x))));
+                    color.setRgb(ColorMap::valueToRedBlue(abs(tf_matrix(y, x))));
                     break;
             }
             image_to_tf_plot->setPixel(x, tf_matrix.rows() - 1 -  y,  color.rgb());
         }
-    }
 
-    *image_to_tf_plot = image_to_tf_plot->scaled(tf_matrix.cols(), tf_matrix.cols()/2, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    *image_to_tf_plot = image_to_tf_plot->scaledToWidth(/*0.9 **/ 1026, Qt::SmoothTransformation);
+    *image_to_tf_plot = image_to_tf_plot->scaledToWidth(900, Qt::SmoothTransformation);
     //image to pixmap
-    QGraphicsPixmapItem *tf_pixmap = new QGraphicsPixmapItem(QPixmap::fromImage(*image_to_tf_plot));
-    //tf_pixmap->setScale(100);
+    QGraphicsPixmapItem *tf_pixmap = new QGraphicsPixmapItem(QPixmap::fromImage(*image_to_tf_plot));    
     QGraphicsScene *tf_scene = new QGraphicsScene();
-    tf_scene->addItem(tf_pixmap);
+    tf_scene->addItem(tf_pixmap);    
 
     QImage * coeffs_image = new QImage(10, tf_matrix.rows(), QImage::Format_RGB32);
     qreal norm = tf_matrix.maxCoeff();
-    for(qint32 it = 0; it < tf_matrix.rows(); it++) {
-        for ( qint32 x = 0; x < 10; x++ ) {
-            switch  (cmap) {
+    for(qint32 it = 0; it < tf_matrix.rows(); it++)
+    {
+        for ( qint32 x = 0; x < 10; x++ )
+        {
+            switch  (cmap)
+            {
                 case Jet:
                     color.setRgb(ColorMap::valueToJet(it*norm/tf_matrix.rows()));
                     break;
@@ -199,7 +167,6 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
         }
     }
 
-    *coeffs_image = coeffs_image->scaled(10, tf_matrix.cols()/2, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     *coeffs_image = coeffs_image->scaledToHeight(image_to_tf_plot->height(), Qt::SmoothTransformation);
 
     QLayout * layout = new QGridLayout();
@@ -219,9 +186,10 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
     QList<QGraphicsItem *> x_axis_values;
     QList<QGraphicsItem *> x_axis_lines;
 
-    qreal scaleXText = (tf_matrix.cols() - 1) /  sample_rate / 20.0;                       // divide signallength
+    qreal scaleXText = (tf_matrix.rows() - 1) /  sample_rate / 20.0;                       // divide signallength
 
-    for(qint32 j = 0; j < 21; j++) {
+    for(qint32 j = 0; j < 21; j++)
+    {
         QGraphicsTextItem *text_item = new QGraphicsTextItem(QString::number(j * scaleXText, 'f', 2), tf_pixmap);
         text_item->setFont(QFont("arial", 10));
         x_axis_values.append(text_item);    // scalevalue as string
@@ -236,7 +204,8 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
 
     qreal scale_x = qreal(tf_pixmap->boundingRect().width()) / qreal(x_axis_values.length()-1);
 
-    for(qint32 i = 0; i < x_axis_values.length(); i++) {
+    for(qint32 i = 0; i < x_axis_values.length(); i++)
+    {
        x_axis_values.at(i)->setPos(qreal(i)*scale_x - x_axis_values.at(0)->boundingRect().width()/2,
                                    tf_pixmap->boundingRect().height());
        x_axis_lines.at(i)->setPos(qreal(i)*scale_x,
@@ -253,13 +222,12 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
 
     qreal scale_y_text = 0;
 
-    if(lower_frq == 0  && upper_frq == 0) {
-        scale_y_text = 0.5* sample_rate / 10.0;                       // divide signallength
-    } else {
-        scale_y_text = (upper_frq - lower_frq) / 10.0;
-    }
+    if(lower_frq == 0  && upper_frq == 0)  scale_y_text = 0.5* sample_rate / 10.0;                       // divide signallength
+    else scale_y_text = (upper_frq - lower_frq) / 10.0;
 
-    for(qint32 j = 0; j < 11; j++) {
+
+    for(qint32 j = 0; j < 11; j++)
+    {
         QGraphicsTextItem *text_item = new QGraphicsTextItem(QString::number(lower_frq + j*scale_y_text,//pow(10, j)/pow(10, 11) /*(j+1)/log(12)*/ * max_frequency,//scale_y_text,
                                                                              'f', 0), tf_pixmap);
         text_item->setFont(QFont("arial", 10));
@@ -277,7 +245,8 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
     qreal scale_y = qreal(tf_pixmap->boundingRect().height()) / qreal(y_axis_values.length()-1);
 
 
-    for(qint32 i = 0; i < y_axis_values.length(); i++) {
+    for(qint32 i = 0; i < y_axis_values.length(); i++)
+    {
        y_axis_values.at(i)->setPos( -y_axis_values.last()->boundingRect().width()
                                     -0.5*y_axis_lines.last()->boundingRect().width()
                                     -1
@@ -290,7 +259,7 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
 
     QGraphicsPixmapItem * coeffs_item = tf_scene->addPixmap(QPixmap::fromImage(*coeffs_image));//addItem();
     coeffs_item->setParentItem(tf_pixmap);
-    coeffs_item->setPos(tf_pixmap->boundingRect().width() +5, 0);
+    coeffs_item->setPos(tf_pixmap->boundingRect().width() +5, 0);    
 
     QGraphicsSimpleTextItem *axis_name_item = new QGraphicsSimpleTextItem("coefficients", coeffs_item);
     QGraphicsSimpleTextItem *axis_zero_item = new QGraphicsSimpleTextItem("0", coeffs_item);
@@ -310,19 +279,78 @@ void TFplot::calc_plot(Eigen::MatrixXd tf_matrix,
 
     view->fitInView(layout->contentsRect(),Qt::KeepAspectRatio);
     layout->addWidget(view);
-    this->setLayout(layout);
+    this->setLayout(layout);   
 }
 
+//*************************************************************************************************************
+
+QImage * TFplot::creatTFPlotImage(MatrixXd tf_matrix, QSize imageSize, ColorMaps cmap)
+{
+    //normalisation of the tf-matrix
+    qreal norm1 = tf_matrix.maxCoeff();
+    qreal mnorm = tf_matrix.minCoeff();
+    if(abs(mnorm) > norm1) norm1 = mnorm;
+    tf_matrix /= norm1;
+
+    qint32 y_factor =  tf_matrix.rows() / imageSize.height();
+    qint32 x_factor =  tf_matrix.cols() / imageSize.width();
+    if(y_factor == 0) y_factor = 1;
+    if(x_factor == 0) x_factor = 1;
+
+    //setup image
+    QImage * image_to_tf_plot = new QImage(imageSize, QImage::Format_RGB32);
+
+    //setup pixelcolors in image
+    QColor color;
+    qint32 ximage = 0;
+    qint32 yimage = 0;
+
+    for ( qint32 y = 0; y < tf_matrix.rows(); y = y + y_factor)
+    {
+        ximage = 0;
+        for ( qint32 x = 0; x < tf_matrix.cols(); x = x + x_factor )
+        {
+            switch  (cmap)
+            {
+            case Jet:
+                color.setRgb(ColorMap::valueToJet(abs(tf_matrix(y, x))));
+                break;
+            case Hot:
+                color.setRgb(ColorMap::valueToHot(abs(tf_matrix(y, x))));
+                break;
+            case HotNeg1:
+                color.setRgb(ColorMap::valueToHotNegative1(abs(tf_matrix(y, x))));
+                break;
+            case HotNeg2:
+                color.setRgb(ColorMap::valueToHotNegative2(abs(tf_matrix(y, x))));
+                break;
+            case Bone:
+                color.setRgb(ColorMap::valueToBone(abs(tf_matrix(y, x))));
+                break;
+            case RedBlue:
+                color.setRgb(ColorMap::valueToRedBlue(abs(tf_matrix(y, x))));
+                break;
+            }
+            if(ximage < image_to_tf_plot->width() && yimage < image_to_tf_plot->height())
+                image_to_tf_plot->setPixel(ximage, image_to_tf_plot->height() - 1 - yimage,  color.rgb());
+            ximage++;
+        }
+        yimage++;
+    }  
+    return image_to_tf_plot;
+}
 
 //*************************************************************************************************************
 
 void TFplot::resizeEvent(QResizeEvent *event)
 {
-    Q_UNUSED(event);   
+    Q_UNUSED(event);
 
     QWidget *widget = this->layout()->itemAt(0)-> widget();
-    if (widget != NULL ) {
+    if (widget != NULL )
+    {
         QGraphicsView* view = (QGraphicsView*)widget;
+        QRectF rec = view->sceneRect();
         view->fitInView(view->sceneRect(),Qt::KeepAspectRatio);
     }
 }

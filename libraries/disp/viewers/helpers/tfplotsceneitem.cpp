@@ -1,16 +1,14 @@
-//MATCHING PURSUIT
 //=============================================================================================================
 /**
-* @file     main.cpp
-* @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
-*           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
-*           Sebastian Krause <sebastian.krause@tu-ilmenau.de>
+* @file     tfplotsceneitem.cpp
+* @author   Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
+*           Martin Henfling <martin.henfling@tu-ilmenau.de>;
 * @version  1.0
-* @date     July, 2014
+* @date     april, 2016
 *
 * @section  LICENSE
 *
-* Copyright (C) 2014, Martin Henfling, Daniel Knobl and Sebastian Krause. All rights reserved.
+* Copyright (C) 2014, Daniel Knobl and Martin Henfling. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that
 * the following conditions are met:
@@ -31,7 +29,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* @brief    Main.cpp starts program.
+* @brief    Contains the implementation of the TFPlotSceneItem class.
+*
 */
 
 //*************************************************************************************************************
@@ -39,68 +38,89 @@
 // INCLUDES
 //=============================================================================================================
 
-#include <iostream>
-#include <vector>
-#include <math.h>
-#include <fiff/fiff.h>
-#include <mne/mne.h>
-#include <utils/mp/atom.h>
-#include <utils/mp/adaptivemp.h>
-#include "mainwindow.h"
-
-//*************************************************************************************************************
-//=============================================================================================================
-// QT INCLUDES
-//=============================================================================================================
-
-#include <QtGui>
-#include <QApplication>
-#include <QDateTime>
+#include "TFPlotSceneItem.h"
 
 //*************************************************************************************************************
 //=============================================================================================================
 // USED NAMESPACES
 //=============================================================================================================
 
-using namespace MNEMatchingPursuit;
-using namespace MNELIB;
-using namespace UTILSLIB;
+using namespace DISPLIB;
+using namespace std;
 
 //*************************************************************************************************************
 //=============================================================================================================
-// FORWARD DECLARATIONS
+// DEFINE MEMBER METHODS
 //=============================================================================================================
 
-MainWindow* mainWindow = NULL;
-
-//*************************************************************************************************************
-//=============================================================================================================
-// MAIN
-//=============================================================================================================
-
-/**
-* The function main marks the entry point of the program.
-* By default, main has the storage class extern.
-*
-* @param [in] argc (argument count) is an integer that indicates how many arguments were entered on the command line when the program was started.
-* @param [in] argv (argument vector) is an array of pointers to arrays of character objects. The array objects are null-terminated strings, representing the arguments that were entered on the command line when the program was started.
-* @return the value that was set to exit() (which is 0 if exit() is called via quit()).
-*/
-int main(int argc, char *argv[])
+TFPlotSceneItem::TFPlotSceneItem(QString channelName, int channelNumber, QPointF channelPosition, QImage *tfImage, int channelKind, int channelUnit, QColor channelColor, bool bIsBadChannel)
+: m_sChannelName(channelName)
+, m_iChannelNumber(channelNumber)
+, m_qpChannelPosition(channelPosition)
+, m_tfImage(tfImage)
+, m_cChannelColor(channelColor)
+, m_bHighlightItem(false)
+, m_iChannelKind(channelKind)
+, m_iChannelUnit(channelUnit)
+, m_bIsBadChannel(bIsBadChannel)
 {
-    QApplication a(argc, argv);
+    this->setAcceptHoverEvents(true);
+    this->setFlag(QGraphicsItem::ItemIsSelectable, true);
+}
 
-    //set application settings
-    QCoreApplication::setOrganizationName("DKnobl MHenfling");
-    QApplication::setApplicationName("MatchingPursuit Viewer");
+//*************************************************************************************************************
 
-    QSettings settings;
-    bool was_maximized = settings.value("maximized", false).toBool();
-    mainWindow = new MainWindow();
-    if(was_maximized)
-        mainWindow->showMaximized();
+QRectF TFPlotSceneItem::boundingRect() const
+{
+    return QRectF(-25, -30, 50, 50);
+}
+
+
+//*************************************************************************************************************
+
+void TFPlotSceneItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+{
+    Q_UNUSED(option);
+    Q_UNUSED(widget);
+
+    this->setPos(10*m_qpChannelPosition.x(), -10*m_qpChannelPosition.y());
+
+    if(m_tfImage->isNull())
+    {
+        // Plot shadow
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(Qt::darkGray);
+        painter->drawEllipse(-12, -12, 30, 30);
+        //Plot red if bad
+        if(m_bIsBadChannel) {
+            painter->setBrush(Qt::red);
+            painter->drawEllipse(-15, -15, 30, 30);
+        }
+        else {
+            painter->setBrush(m_cChannelColor);
+            painter->drawEllipse(-15, -15, 30, 30);
+        }
+
+        //Plot selected item
+        if(this->isSelected()){
+            //painter->setPen(QPen(QColor(255,84,22), 5));
+            painter->setPen(QPen(Qt::red, 5));
+            painter->drawEllipse(-15, -15, 30, 30);
+        }
+
+        // Plot electrode name
+        painter->setPen(QPen(Qt::black, 1));
+        QStaticText staticElectrodeName = QStaticText(m_sChannelName);
+        QSizeF sizeText = staticElectrodeName.size();
+        painter->drawStaticText(-15+((30-sizeText.width())/2), -32, staticElectrodeName);
+    }
     else
-        mainWindow->show();
-
-    return a.exec();
+    {
+        painter->drawImage(QRectF(-30, -15, 60, 30), *m_tfImage);
+        // Plot electrode name
+        painter->setPen(QPen(Qt::black, 1));
+        QStaticText staticElectrodeName = QStaticText(m_sChannelName);
+        QSizeF sizeText = staticElectrodeName.size();
+        painter->drawStaticText(-30+((60-sizeText.width())/2), -32, staticElectrodeName);
+    }
 }

@@ -1,14 +1,14 @@
 //=============================================================================================================
 /**
-* @file     tfplot.cpp
-* @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
-*           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
+* @file     tfplotsceneitem.h
+* @author   Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
+*           Martin Henfling <martin.henfling@tu-ilmenau.de>;
 * @version  1.0
-* @date     September, 2015
+* @date     april, 2016
 *
 * @section  LICENSE
 *
-* Copyright (C) 2014, Martin Henfling and Daniel Knobl. All rights reserved.
+* Copyright (C) 2014, Daniel Knobl and Martin Henfling. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that
 * the following conditions are met:
@@ -29,142 +29,95 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* @brief    Declaration of time-frequency plot class.
+* @brief    Contains the declaration of the TFPlotSceneItem class.
+*
 */
-
-#ifndef TFPLOT_H
-#define TFPLOT_H
+#ifndef TFPLOTSCENEITEM_H
+#define TFPLOTSCENEITEM_H
 
 //*************************************************************************************************************
 //=============================================================================================================
 // INCLUDES
 //=============================================================================================================
 
-#include "../disp_global.h"
-#include <disp/plots/helpers/colormap.h>
+#include "../../disp_global.h"
+#include <iostream>
+
 
 //*************************************************************************************************************
 //=============================================================================================================
-// Qt INCLUDES
+// QT INCLUDES
 //=============================================================================================================
 
-#include <QImage>
-#include <QGridLayout>
-#include <QGraphicsView>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsSceneResizeEvent>
+#include <QGraphicsItem>
+#include <QString>
+#include <QColor>
+#include <QPainter>
+#include <QStaticText>
+#include <QDebug>
+
 
 //*************************************************************************************************************
 //=============================================================================================================
-// Eigen INCLUDES
+// DEFINE NAMESPACE DISPLIB
 //=============================================================================================================
-
-#include <Eigen/Core>
-#include <Eigen/SparseCore>
-#include <unsupported/Eigen/FFT>
 
 namespace DISPLIB
 {
+
 
 //*************************************************************************************************************
 //=============================================================================================================
 // USED NAMESPACES
 //=============================================================================================================
 
-using namespace Eigen;
-//using namespace UTILSLIB;
 
-/*
-enum ColorMaps
-{
-    Hot,
-    HotNeg1,
-    HotNeg2,
-    Jet,
-    Bone,
-    RedBlue
-};
+//=============================================================================================================
+/**
+* TFPlotSceneItem...
+*
+* @brief The TFPlotSceneItem class provides a new data structure for visualizing channels in a 2D layout.
 */
-
-class DISPSHARED_EXPORT TFplot : public QWidget
+class DISPSHARED_EXPORT TFPlotSceneItem : public QGraphicsItem
 {
 
 public:
     //=========================================================================================================
     /**
-    * TFplot_TFplot
-    *
-    * ### display tf-plot function ###
-    *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
+    * Constructs a TFPlotSceneItem.
     */
-    TFplot();
+    TFPlotSceneItem(QString channelName, int channelNumber, QPointF channelPosition, QImage *tfImage, int channelKind, int channelUnit, QColor channelColor = Qt::blue, bool bIsBadChannel = false);
+    //=========================================================================================================
+    /**
+    * Returns the bounding rect of the electrode item. This rect describes the area which the item uses to plot in.
+    */
+    QRectF boundingRect() const;
 
     //=========================================================================================================
     /**
-    * TFplot_TFplot
-    *
-    * ### display tf-plot function ###
-    *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] lower_frq         lower bound frequency, that should be plotted
-    *  @param[in] upper_frq         upper bound frequency, that should be plotted
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *
+    * Reimplemented paint function.
     */
-    TFplot(MatrixXd tf_matrix, qreal sample_rate, qreal lower_frq, qreal upper_frq, ColorMaps cmap);
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget);
 
-    //=========================================================================================================
-    /**
-    * TFplot_TFplot
-    *
-    * ### display tf-plot function ###
-    *
-    * Constructor
-    *
-    * constructs TFplot class
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *
-    */
-    TFplot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap);
-
-    //=========================================================================================================
-    QImage * creatTFPlotImage(MatrixXd tf_matrix, QSize imageSize, ColorMaps cmap);
-
-private:
-
-    //=========================================================================================================
-    /**
-    * TFplot_calc_plot
-    *
-    * ### display tf-plot function ###
-    *
-    * calculates a image to plot the tf_matrix
-    *
-    *  @param[in] tf_matrix         given spectrogram
-    *  @param[in] sample_rate       given sample rate of signal related to th spectrogram
-    *  @param[in] cmap              colormap used to plot the spectrogram
-    *  @param[in] lower_frq         lower bound frequency, that should be plotted
-    *  @param[in] upper_frq         upper bound frequency, that should be plotted
-    *
-    */
-    void calc_plot(MatrixXd tf_matrix, qreal sample_rate, ColorMaps cmap, qreal lower_frq, qreal upper_frq);
-
-protected:
-     virtual void resizeEvent(QResizeEvent *event);
+    QString     m_sChannelName;             /**< The channel's name.*/
+    int         m_iChannelNumber;           /**< The channel number.*/
+    int         m_iChannelKind;             /**< The channel kind.*/
+    int         m_iChannelUnit;             /**< The channel unit.*/
+    QPointF     m_qpChannelPosition;        /**< The channel's 2D position in the scene.*/
+    QColor      m_cChannelColor;            /**< The current channel color.*/
+    bool        m_bHighlightItem;           /**< Whether this item is to be highlighted.*/
+    bool        m_bIsBadChannel;            /**< Whether this item is a bad channel.*/
+    QImage      *m_tfImage;
 };
 
-}
+struct TFPlotItemStruct
+{
+     public:
+         QString channelName;
+         QPointF coordinates;
+         QImage *tfPlotImage;
+ };
 
-#endif // TFPLOT_H
+} // NAMESPACE DISPLIB
+
+#endif // TFPLOTSCENEITEM_H
