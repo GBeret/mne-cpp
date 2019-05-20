@@ -54,7 +54,7 @@
 #include <utils/mp/fixdictmp.h>
 
 #include <disp/plots/tfplot.h>
-#include <disp/plots/tpplot.h>
+#include <disp/plots/topoplot.h>
 #include <disp/plots/plot.h>
 #include <disp/plots/helpers/colormap.h>
 #include <disp/viewers/helpers/tfplotscene.h>
@@ -140,17 +140,6 @@ enum source_file_type
     TXT
 };
 
-struct TopoPlotInputData
-{
-    MatrixXd signalMatrix;
-    quint32 iRangeLow;
-    quint32 iRangeHigh;
-    QMap<QString, QPoint> topoMap;
-    QSize window_size;
-    qint32 widgetHeight;
-    QList<MatrixXd> topoMatrixList;
-};
-
 class GraphWindow;
 class ResiduumWindow;
 class AtomSumWindow;
@@ -171,13 +160,14 @@ public:
     typedef QList<QList<GaborAtom> > adaptive_atom_list;
     typedef QList<FixDictAtom> fix_dict_atom_list;
     typedef QMap<qint32, bool> select_map;
-    typedef QMap<QString,QPoint> topo_map;
+    typedef QMap<QString, QPointF> channelMap;
     typedef Eigen::VectorXd VectorXd;
     typedef Eigen::RowVectorXi RowVectorXi;
-    typedef TFPlotSceneItem TFSceneItem;
-    typedef QList<QImage> topo_images;
-    typedef Eigen::MatrixXd matrixXd;
+    typedef TFPlotSceneItem TFSceneItem;    
+    typedef Eigen::MatrixXd MatrixXd;
     typedef QSize size;
+    typedef QList<QImage> imageList;
+    typedef ColorMaps colorMaps;
 
 
 private slots:
@@ -690,11 +680,11 @@ private slots:
 
     //==========================================================================================================
 
-    void recieve_view(QImage image, qint32 play_time);
+    void recieveView(QImage image, qint32 play_time);
 
     //==========================================================================================================
 
-    void recieve_load_progress(qint32 current_progress, qint32 finished);
+    void recieveTopoplotResult(QList<QImage>, bool finished);
 
     //==========================================================================================================
 
@@ -706,8 +696,8 @@ signals:
     void send_input_fix_dict(MatrixXd send_signal, qint32 send_max_iterations, qreal send_epsilon, qint32 boost, QString path, qreal delta);
     void to_save(QString source_path, QString save_path, fiff_int_t start_change, fiff_int_t end_change, MatrixXd changes, MatrixXd original_signal, select_map select_channel_map, RowVectorXi picks, source_file_type file_type);
     void kill_save_thread();
-    void send_load_topoplot(matrixXd signal_matrix, topo_map topoMap, size topoSize, qint32 imageHeigth);
-    void send_play_input(topo_images topo_images, qint32 play_time, qint32 max_play_time);
+    void sendtoTopoplot(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32);
+    void send_play_input(imageList topo_images, qint32 play_time, qint32 max_play_time);
 
 private:
 
@@ -759,14 +749,7 @@ private:
     FiffInfo pick_info;
     QPalette pal;
     QTimer *counter_timer;
-    QLabel * topoLabel;
-    /*
-    QThread *mp_Thread;
-    QThread *play_topo_Thread;
-    PlayTopoPlot *play_TopoPlot;
-    AdaptiveMp *adaptive_Mp;
-    FixDictMp *fixDict_Mp ;
-    */
+    QLabel * topoLabel;  
 
     QMap<QString,QPointF>           m_layoutMap;                         /**< QMap with the loaded layout. each channel name correspond to a QPointF variable. */
     TFPlotScene*                 m_tfPlotScene;                          /**< Pointer to the selection scene class. */
@@ -1074,12 +1057,6 @@ private:
     void initTopoPlot();
 
     //=========================================================================================================
-
-    //static QList<MatrixXd> createTopoPlotMatrix(const TopoPlotInputData& data);
-    //static QList<QImage> createTopoPlotImages(const TopoPlotInputData& inputData);
-    //static void reduceMatrix(QList<MatrixXd> &resultData, const QList<MatrixXd> &data);
-    //static void reduceImages(QList<QImage> &resultData, const QList<QImage> &data);
-
 };
 
 //*************************************************************************************************************
@@ -1211,8 +1188,7 @@ public:
 
 //*************************************************************************************************************
 //save fif file class
-class SaveFifFile : public QThread
-{
+class SaveFifFile : public QThread {
     Q_OBJECT
 
     typedef QMap<qint32, bool> select_map;
@@ -1243,50 +1219,13 @@ signals:
 };
 
 //*************************************************************************************************************
-//class to load all topoplot datas
-class LoadTopoPlot : public QThread
-{
-    Q_OBJECT
-
-    typedef QMap<QString, QPoint> topo_map;
-    typedef Eigen::MatrixXd matrixXd;
-    typedef QSize size;
-
-public:
-    LoadTopoPlot();
-    ~LoadTopoPlot();
-
-    static QList<MatrixXd> createTopoPlotMatrix(const TopoPlotInputData& data);
-    static QList<QImage> createTopoPlotImages(const TopoPlotInputData& inputData);
-    static void reduceMatrix(QList<MatrixXd> &resultData, const QList<MatrixXd> &data);
-    static void reduceImages(QList<QImage> &resultData, const QList<QImage> &data);
-
-private slots:
-    //==========================================================================================================
-    /**
-    * MainWindow_save_fif_file
-    *
-    * ### MP toolbox main function ###
-    *
-    * saves fiff-files
-    *
-    * @return   void
-    */
-    void recieve_load_topoplot(matrixXd signal_matrix, topo_map topoMap, size topoSize, qint32 imageHeigth);
-
-signals:
-    void send_load_progress(qint32 current_progress, qint32 finished);
-
-};
-
-//*************************************************************************************************************
 //play topoplot class
 class PlayTopoPlot : public QThread
 {
     Q_OBJECT
 
     typedef QMap<QString,QPoint> topo_map;
-    typedef QList<QImage> topo_images;
+    typedef QList<QImage> imageList;
 
 public:
     PlayTopoPlot();
@@ -1303,10 +1242,10 @@ public slots:
     *
     * @return   void
     */
-    void play_tplot(topo_images topoMap, qint32 play_time, qint32 max_play_time);    
+    void playTopoPlot(imageList topoImages, qint32 play_time, qint32 max_play_time);
 
 signals:
-    void send_view(QImage image, qint32 play_time);
+    void sendView(QImage image, qint32 play_time);
 
 };
 

@@ -1,6 +1,6 @@
 //=============================================================================================================
 /**
-* @file     tpplot.cpp
+* @file     topoplot.cpp
 * @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
 *           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
 * @version  1.0
@@ -32,8 +32,8 @@
 * @brief    Declaration of topo plot class.
 */
 
-#ifndef TPPLOT_H
-#define TPPLOT_H
+#ifndef TOPOPLOT_H
+#define TOPOPLOT_H
 
 //*************************************************************************************************************
 //=============================================================================================================
@@ -53,6 +53,9 @@
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSceneResizeEvent>
+#include <QtConcurrent>
+//#include <QList>
+//#include <QSize>
 
 //*************************************************************************************************************
 //=============================================================================================================
@@ -67,15 +70,17 @@
 namespace DISPLIB
 {
 
-struct InterpolationInputData {
-    Eigen::MatrixXd maInputData;
+struct TopoPlotInputData
+{
+    Eigen::MatrixXd signalMatrix;
     quint32 iRangeLow;
     quint32 iRangeHigh;
-    QList<QPoint> coors;
-    qint32 x;
-    qint32 y;
-
-    //qint32 window_size;
+    qint32 dampingFactor;
+    ColorMaps colorMap;
+    QMap<QString, QPoint> topoMap;
+    QSize topoMatrixSize;
+    QSize imageSize;
+    QList<Eigen::MatrixXd> topoMatrixList;
 };
 
 //*************************************************************************************************************
@@ -83,43 +88,41 @@ struct InterpolationInputData {
 // USED NAMESPACES
 //=============================================================================================================
 
-using namespace Eigen;
-
-class DISPSHARED_EXPORT Tpplot
+class DISPSHARED_EXPORT TopoPlot : public QThread
 {
+
+    Q_OBJECT
+
+    typedef QMap<QString, QPointF> channelMap;
+    typedef Eigen::MatrixXd MatrixXd;
+    typedef QList<QImage> imageList;
+    typedef ColorMaps colorMaps;
+
 public:
-    Tpplot();
+    TopoPlot();
+    //~TopoPlot();
+    static QList<Eigen::MatrixXd> createTopoPlotMatrix(const TopoPlotInputData& inputData);
+    static QList<QImage> createTopoPlotImages(const TopoPlotInputData& inputData);
+    static void reduceMatrix(QList<Eigen::MatrixXd> &resultData, const QList<Eigen::MatrixXd> &data);
+    static void reduceImages(QList<QImage> &resultData, const QList<QImage> &data);
+    QList<QImage> createTopoPlotImageList(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor);
 
-    QMap<QString,QPoint> createMapGrid(QMap<QString,QPointF> layoutMap, QSize topo_matrix_size);
-    MatrixXd normSignal(MatrixXd signalMatrix);
-    MatrixXd createGridPointMatrix(MatrixXd normSignal, QMap<QString, QPoint> mapGrid, QSize gridPointMatrixSize, qint32 timeSample);
-    QImage * creatPlotImage(MatrixXd topoMatrix, QSize imageSize, ColorMaps cmap, bool nomalization);
-    MatrixXd calcNearestNeighboursInterpolation(MatrixXd topoMatrix, QMap<QString,QPoint> mapGrid);
-    MatrixXd calcBilinearInterpolation(MatrixXd topoMatrix, QMap<QString, QPoint> mapGrid);
+private:
 
-    //=========================================================================================================
-    /**
-    * Calculates the spectogram matrix for a given input data matrix.
-    *
-    * @param[in] data       The input data.
-    *
-    * @return               The spectogram matrix.
-    */
-    static Eigen::MatrixXd computeyxf(const InterpolationInputData& data);
+    static QMap<QString,QPoint> createMapGrid(const QMap<QString,QPointF> layoutMap, const QSize topo_matrix_size);
+    static Eigen::MatrixXd normSignal(Eigen::MatrixXd signalMatrix);
+    static Eigen::MatrixXd createGridPointMatrix(const Eigen::MatrixXd normSignal, const QMap<QString, QPoint> mapGrid, const QSize gridPointMatrixSize, const qint32 timeSample);
+    static QImage * creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const ColorMaps cmap);
+    static Eigen::MatrixXd calcNearestNeighboursInterpolation(Eigen::MatrixXd topoMatrix, const QMap<QString,QPoint> mapGrid);
+    static Eigen::MatrixXd calcBilinearInterpolation(const MatrixXd topoMatrix, const QMap<QString, QPoint> mapGrid, const qint32 dampingFactor);
 
-    static Eigen::MatrixXd computexyf(const InterpolationInputData& data);
+public slots:
+    void recieveInputStartCalculation(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor);
 
-    //=========================================================================================================
-    /**
-    * Sums up (reduces) the in parallel processed spectogram matrix.
-    *
-    * @param[out] resultData    The result data.
-    * @param[in]  data          The incoming, temporary result data.
-    */
-    static void reduce(Eigen::MatrixXd &resultData,
-                       const Eigen::MatrixXd &data);
+signals:
+    void sendResult(imageList topoPlotImageList, bool finished);
 };
 
 }
 
-#endif // TPPLOT_H
+#endif // TOPOPLOT_H

@@ -203,8 +203,9 @@ MainWindow::MainWindow(QWidget *parent) :    QMainWindow(parent),    ui(new Ui::
     qRegisterMetaType<fix_dict_atom_list>("fix_dict_atom_list");
     qRegisterMetaType<FIFFLIB::fiff_int_t>("fiff_int_t");
     qRegisterMetaType<select_map>("select_map");
-    qRegisterMetaType<topo_map>("topo_map");
-    qRegisterMetaType<topo_images>("topo_images");
+    qRegisterMetaType<channelMap>("channelMap");
+    qRegisterMetaType<imageList>("imageList");
+    qRegisterMetaType<colorMaps>("colorMaps");
 
     QDir dir(QDir::homePath() + "/" + "Matching-Pursuit-Toolbox");
     if(!dir.exists())dir.mkdir(".");
@@ -274,14 +275,6 @@ SaveFifFile::SaveFifFile(){}
 //*************************************************************************************************************************************
 
 SaveFifFile::~SaveFifFile(){}
-
-//*************************************************************************************************************************************
-
-LoadTopoPlot::LoadTopoPlot(){}
-
-//*************************************************************************************************************************************
-
-LoadTopoPlot::~LoadTopoPlot(){}
 
 //*************************************************************************************************************************************
 
@@ -3609,14 +3602,16 @@ void MainWindow::updateTFScene()
  void MainWindow::closeTab(int tabIndex)
  {
      ui->tabWidget->removeTab(tabIndex);
- }
+ } 
 
 //*************************************************************************************************************
-QList<QImage> _topoPlotImages;
+
+ QList<QImage> _topoPlotImageList;
+
+//*************************************************************************************************************
 
  void MainWindow::initTopoPlot()
  {
-     Tpplot tplot;
      QSize topoSize(64, 64);//(256, 256);//(64, 64);
 
      QMap<QString, QPointF> selLayoutMap;
@@ -3635,336 +3630,43 @@ QList<QImage> _topoPlotImages;
              selLayoutMap[pick_info.ch_names.at(selChn.key())] = m_layoutMap[name];
          }
      }
-
-     QMap<QString, QPoint> topoMap = tplot.createMapGrid(selLayoutMap, topoSize);
-
-     ui->lb_topotime->setAlignment(Qt::AlignRight);
-     ui->sli_topoTime->setMinimum(0);
-     ui->sli_topoTime->setMaximum(_signal_matrix.rows());
      ui->btt_playtopo->setEnabled(false);
-
-     QElapsedTimer timer;
-     timer.start();
-
-     QList<MatrixXd> topoMatrixList;
-     QList<QImage> topoPlotImages;
-
-     // debug
-     for(qint32 time_sample = 0; time_sample < _signal_matrix.rows() ; time_sample++)
-     {
-          MatrixXd topoMatrix = tplot.createGridPointMatrix(_signal_matrix, topoMap, topoSize, time_sample);
-          topoMatrix  = tplot.calcBilinearInterpolation(topoMatrix, topoMap);
-          topoMatrixList.append(topoMatrix);
-     }
-     qDebug() << "make_topoMatrix: " << timer.elapsed() << " ms";
-
-      //find min value
-     qreal minCoeff = topoMatrixList.at(0).minCoeff();
-     for(int i = 0; i < topoMatrixList.length(); i++)
-     {
-         if(minCoeff > topoMatrixList.at(i).minCoeff())
-              minCoeff = topoMatrixList.at(i).minCoeff();
-     }
-
-     QList<MatrixXd> absTopoMatrixList;
-     for(int i = 0; i < topoMatrixList.length(); i++)
-     {
-          MatrixXd topoMatrix = topoMatrixList.at(i);
-          topoMatrix.array() += abs(minCoeff);
-          absTopoMatrixList.append(topoMatrix);
-     }
-
-     //find max value
-     qreal maxCoeff =  absTopoMatrixList.at(0).maxCoeff();
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         if(maxCoeff < absTopoMatrixList.at(i).maxCoeff())
-              maxCoeff =absTopoMatrixList.at(i).maxCoeff();
-     }
-
-     QList<MatrixXd> normTopoMatrixList;
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         MatrixXd topoMatrix = absTopoMatrixList.at(i);
-         normTopoMatrixList.append(topoMatrix /=  maxCoeff);
-     }
-
-     qDebug() << "normalization_topoMatrix: " << timer.elapsed() << " ms";
-
-      // draw
-     for(qint32 i = 0; i < normTopoMatrixList.length() ; i++)
-     {
-          MatrixXd topoMatrix = normTopoMatrixList.at(i);
-          QImage *image = tplot.creatPlotImage(topoMatrix, topoSize, Jet, false);
-          *image = image->scaledToHeight(ui->tabWidget->height() * 0.89, Qt::FastTransformation);
-
-          topoPlotImages.append(*image);
-          //topoLabel->setPixmap(QPixmap::fromImage(*image));
-          if(image != nullptr) delete image;
-
-          //repaint();
-          //topoMatrix.resize(0,0);
-     }
-     qDebug() << "make_topoImage: " << timer.elapsed() << " ms";
-     _topoPlotImages = topoPlotImages;
-     ui->btt_playtopo->setEnabled(true);
-    /*
-     LoadTopoPlot *load_plot = new LoadTopoPlot();
-     QThread *load_plot_thread = new QThread();
-     load_plot->moveToThread(load_plot_thread);
-
-     connect(this, SIGNAL(send_load_topoplot(matrixXd, topo_map, size, qint32)), load_plot, SLOT(recieve_load_topoplot(matrixXd, topo_map, size, qint32)));
-     connect(load_plot, SIGNAL(send_load_progress(qint32, qint32)), this, SLOT(recieve_load_progress(qint32, qint32)));
-     connect(load_plot_thread, SIGNAL(finished()), load_plot_thread, SLOT(deleteLater()));
-     connect(load_plot, SIGNAL(finished()), load_plot_thread, SLOT(deleteLater()));
-
-     emit(send_load_topoplot(_signal_matrix, topoMap, topoSize, ui->tabWidget->height()));
-     load_plot_thread->start();
-    */
-     /*
-     QList<TopoPlotInputData> topoMatrixData;
-     int iThreadSize = QThread::idealThreadCount()*2;
-     int iStepsSize = _signal_matrix.rows()/iThreadSize;
-     int iResidual = _signal_matrix.rows()%iThreadSize;
-
-     TopoPlotInputData topoMatrixTemp;
-     topoMatrixTemp.signalMatrix = _signal_matrix;
-     topoMatrixTemp.window_size = topoSize;
-     topoMatrixTemp.topoMap = topoMap;
-
-     for (int i = 0; i < iThreadSize; ++i)
-     {
-         topoMatrixTemp.iRangeLow = i*iStepsSize;
-         topoMatrixTemp.iRangeHigh = i*iStepsSize+iStepsSize;
-         topoMatrixData.append(topoMatrixTemp);
-     }
-
-     topoMatrixTemp.iRangeLow = iThreadSize*iStepsSize;
-     topoMatrixTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
-     topoMatrixData.append(topoMatrixTemp);
-
-     QFuture<QList<MatrixXd>> topoMatrixList = QtConcurrent::mappedReduced(topoMatrixData, createTopoPlotMatrix, reduceMatrix);
-     topoMatrixList.waitForFinished();
-
-     // maxValue and minValue
-     qreal maxCoeff =  topoMatrixList.result().at(0).maxCoeff();
-     qreal minCoeff = topoMatrixList.result().at(0).minCoeff();
-
-     for(int i = 0; i < topoMatrixList.result().length(); i++)
-     {
-         if(minCoeff > topoMatrixList.result().at(i).minCoeff())
-              minCoeff = topoMatrixList.result().at(i).minCoeff();
-     }
-
-     QList<MatrixXd> absTopoMatrixList;
-     for(int i = 0; i < topoMatrixList.result().length(); i++)
-     {
-          MatrixXd topoMatrix = topoMatrixList.result().at(i);
-          topoMatrix.array() += abs(minCoeff);     // + topoMatrix;
-          absTopoMatrixList.append(topoMatrix);
-     }
-
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         if(maxCoeff < absTopoMatrixList.at(i).maxCoeff())
-              maxCoeff = absTopoMatrixList.at(i).maxCoeff();
-     }
-
-     qDebug() << "groesster Wert: " << maxCoeff ;
-
-     QList<MatrixXd> normTopoMatrixList;
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         MatrixXd topoMatrix = absTopoMatrixList.at(i);
-         normTopoMatrixList.append(topoMatrix /=  maxCoeff);
-     }
-
-     QList<TopoPlotInputData> topoImageData;
-     iThreadSize = QThread::idealThreadCount()*2;
-     iStepsSize = normTopoMatrixList.count()/iThreadSize;
-     iResidual = normTopoMatrixList.count()%iThreadSize;
-
-     TopoPlotInputData topoImageTemp;
-     topoImageTemp.topoMatrixList = normTopoMatrixList;
-     topoImageTemp.window_size = topoSize;
-     topoImageTemp.widgetHeight = ui->tabWidget->height();
-
-     for (int i = 0; i < iThreadSize; ++i)
-     {
-         topoImageTemp.iRangeLow = i*iStepsSize;
-         topoImageTemp.iRangeHigh = i*iStepsSize+iStepsSize;
-         topoImageData.append(topoImageTemp);
-     }
-
-     topoImageTemp.iRangeLow = iThreadSize*iStepsSize;
-     topoImageTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
-     topoImageData.append(topoImageTemp);
-
-     QFuture<QList<QImage>> topoImages = QtConcurrent::mappedReduced(topoImageData, createTopoPlotImages, reduceImages);
-     topoImages.waitForFinished();
-     _topoPlotImages = topoImages.result();
-
      ui->lb_topotime->setAlignment(Qt::AlignRight);
      ui->sli_topoTime->setMinimum(0);
      ui->sli_topoTime->setMaximum(_signal_matrix.rows());
 
-     topoLabel->setPixmap(QPixmap::fromImage(topoImages.result().at(0)));
+     TopoPlot *create_plot = new TopoPlot();
+     QList<QImage> imageList = create_plot->createTopoPlotImageList(_signal_matrix, selLayoutMap, topoSize, ui->tabWidget->size(), Jet, 20);
+     _topoPlotImageList = imageList;
+
+     topoLabel->setPixmap(QPixmap::fromImage(_topoPlotImageList.at(0)));
      repaint();
+     ui->btt_playtopo->setEnabled(true);
+
+     /*
+     TopoPlot *create_plot = new TopoPlot();
+     QThread *create_plot_thread = new QThread();
+     create_plot->moveToThread(create_plot_thread);
+     connect(this, SIGNAL(sendtoTopoplot(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32)),
+             create_plot, SLOT(recieveInputStartCalculation(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32)));
+     connect(create_plot, SIGNAL(sendResult(imageList, bool)), this, SLOT(recieveTopoplotResult(imageList, bool)));
+     connect(create_plot_thread, SIGNAL(finished()), create_plot_thread, SLOT(deleteLater()));
+     connect(create_plot, SIGNAL(finished()), create_plot_thread, SLOT(deleteLater()));
+
+     emit(sendtoTopoplot(_signal_matrix, selLayoutMap, topoSize, ui->tabWidget->size(), Jet, 20));
+     create_plot->start();
      */
-
-}
-
- //*************************************************************************************************************
-
- void LoadTopoPlot::recieve_load_topoplot(matrixXd signal_Matrix, topo_map topoMap, size topoSize, qint32 imageHeight)
- {
-     // Signal just positiv (plus Offset)
-     //signal_Matrix.array() += abs(signal_Matrix.minCoeff());
-
-     QList<TopoPlotInputData> topoMatrixData;
-     int iThreadSize = QThread::idealThreadCount()*2;
-     int iStepsSize = signal_Matrix.rows()/iThreadSize;
-     int iResidual = signal_Matrix.rows()%iThreadSize;
-
-     TopoPlotInputData topoMatrixTemp;
-     topoMatrixTemp.signalMatrix = signal_Matrix;
-     topoMatrixTemp.window_size = topoSize;
-     topoMatrixTemp.topoMap = topoMap;
-
-     for (int i = 0; i < iThreadSize; ++i)
-     {
-         topoMatrixTemp.iRangeLow = i*iStepsSize;
-         topoMatrixTemp.iRangeHigh = i*iStepsSize+iStepsSize;
-         topoMatrixData.append(topoMatrixTemp);
-     }
-
-     topoMatrixTemp.iRangeLow = iThreadSize*iStepsSize;
-     topoMatrixTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
-     topoMatrixData.append(topoMatrixTemp);
-
-     QElapsedTimer timer;
-     timer.start();
-     QFuture<QList<MatrixXd>> topoMatrixList = QtConcurrent::mappedReduced(topoMatrixData, createTopoPlotMatrix, reduceMatrix);
-     topoMatrixList.waitForFinished();
-     qDebug() << "make_topoMatrix: " << timer.elapsed() << " ms";
-
-     // maxValue and minValue
-     qreal minCoeff = topoMatrixList.result().at(0).minCoeff();
-     for(int i = 0; i < topoMatrixList.result().length(); i++)
-     {
-         if(minCoeff > topoMatrixList.result().at(i).minCoeff())
-              minCoeff = topoMatrixList.result().at(i).minCoeff();
-     }
-
-     QList<MatrixXd> absTopoMatrixList;
-     for(int i = 0; i < topoMatrixList.result().length(); i++)
-     {
-          MatrixXd topoMatrix = topoMatrixList.result().at(i);
-          topoMatrix.array() += abs(minCoeff);     // + topoMatrix;
-          absTopoMatrixList.append(topoMatrix);
-     }
-
-     //find max value
-     qreal maxCoeff =  absTopoMatrixList.at(0).maxCoeff();
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         if(maxCoeff < absTopoMatrixList.at(i).maxCoeff())
-              maxCoeff =absTopoMatrixList.at(i).maxCoeff();
-     }
-
-     //qDebug() << "groesster Wert: " << maxCoeff ;
-
-     QList<MatrixXd> normTopoMatrixList;
-     for(int i = 0; i < absTopoMatrixList.length(); i++)
-     {
-         MatrixXd topoMatrix = absTopoMatrixList.at(i);
-         normTopoMatrixList.append(topoMatrix /=  maxCoeff);
-     }
-
-     qDebug() << "normalization_topoMatrix: " << timer.elapsed() << " ms";
-
-     QList<TopoPlotInputData> topoImageData;
-     iThreadSize = QThread::idealThreadCount()*2;
-     iStepsSize = normTopoMatrixList.count()/iThreadSize;
-     iResidual = normTopoMatrixList.count()%iThreadSize;
-
-     TopoPlotInputData topoImageTemp;
-     topoImageTemp.topoMatrixList = normTopoMatrixList;
-     topoImageTemp.window_size = topoSize;
-     topoImageTemp.widgetHeight = imageHeight;
-
-     for (int i = 0; i < iThreadSize; ++i)
-     {
-         topoImageTemp.iRangeLow = i*iStepsSize;
-         topoImageTemp.iRangeHigh = i*iStepsSize+iStepsSize;
-         topoImageData.append(topoImageTemp);
-     }
-
-     topoImageTemp.iRangeLow = iThreadSize*iStepsSize;
-     topoImageTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
-     topoImageData.append(topoImageTemp);
-
-     QFuture<QList<QImage>> topoImages = QtConcurrent::mappedReduced(topoImageData, createTopoPlotImages, reduceImages);
-     topoImages.waitForFinished();
-    qDebug() << "make_topoImage: " << timer.elapsed() << " ms";
-     _topoPlotImages = topoImages.result();
-
-     emit(send_load_progress(0, true));
  }
 
  //*************************************************************************************************************
 
- void MainWindow::recieve_load_progress(qint32 current_progress, qint32 finished)
+ void MainWindow::recieveTopoplotResult(imageList topoPlotImageList, bool finished)
  {
-        if(finished)
-        {
-           ui->btt_playtopo->setEnabled(true);
-        }
- }
-
-//*************************************************************************************************************
-
- QList<MatrixXd> LoadTopoPlot::createTopoPlotMatrix(const TopoPlotInputData& inputData)
- {
-     Tpplot tplot;
-     QList<MatrixXd> matrixList;
-     for(qint32 time_sample = inputData.iRangeLow; time_sample < inputData.iRangeHigh; time_sample++)
+     if(finished)
      {
-          MatrixXd topoMatrix = tplot.createGridPointMatrix(inputData.signalMatrix, inputData.topoMap, inputData.window_size, time_sample);
-          topoMatrix  = tplot.calcBilinearInterpolation(topoMatrix, inputData.topoMap);
-          matrixList.append(topoMatrix);
+         _topoPlotImageList = topoPlotImageList;
+         ui->btt_playtopo->setEnabled(true);
      }
-     return matrixList;
- }
-
- //*************************************************************************************************************
-
- QList<QImage> LoadTopoPlot::createTopoPlotImages(const TopoPlotInputData& inputData)
- {
-     Tpplot tplot;
-     QList<QImage> imageList;
-     for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
-     {
-         QImage *image = tplot.creatPlotImage(inputData.topoMatrixList.at(i), inputData.window_size, Jet, false);
-         *image = image->scaledToHeight(qRound(inputData.widgetHeight * 0.89), Qt::FastTransformation);
-         imageList.append(*image);
-         if(image != nullptr) delete image;
-     }
-  return imageList;
- }
-
- //*************************************************************************************************************
-
- void LoadTopoPlot::reduceMatrix(QList<MatrixXd> &resultData, const QList<MatrixXd> &data)
- {
-     resultData.append(data);
- }
-
- //*************************************************************************************************************
-
- void LoadTopoPlot::reduceImages(QList<QImage> &resultData, const QList<QImage> &data)
- {
-     resultData.append(data);
  }
 
 //*************************************************************************************************************
@@ -3987,8 +3689,8 @@ void MainWindow::on_btt_playtopo_clicked()
         play_topo_Thread = new QThread;
         play_TopoPlot->moveToThread(play_topo_Thread);
 
-        connect(this, SIGNAL(send_play_input(topo_images , qint32, qint32)), play_TopoPlot, SLOT(play_tplot(topo_images,  qint32, qint32)));
-        connect(play_TopoPlot, SIGNAL(send_view(QImage, qint32)), this, SLOT(recieve_view(QImage, qint32)));
+        connect(this, SIGNAL(send_play_input(imageList , qint32, qint32)), play_TopoPlot, SLOT(playTopoPlot(imageList,  qint32, qint32)));
+        connect(play_TopoPlot, SIGNAL(sendView(QImage, qint32)), this, SLOT(recieveView(QImage, qint32)));
         connect(play_topo_Thread, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
         connect(play_TopoPlot, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
 
@@ -3996,20 +3698,19 @@ void MainWindow::on_btt_playtopo_clicked()
         if(_last_play_time == _signal_matrix.rows())
             _last_play_time = 0;
 
-        emit send_play_input(_topoPlotImages, _last_play_time, _signal_matrix.rows());
+        emit send_play_input(_topoPlotImageList, _last_play_time, _signal_matrix.rows());
         play_topo_Thread->start();
     }
 }
 
 //*************************************************************************************************************
 
-void MainWindow::recieve_view(QImage image, qint32 play_time)
+void MainWindow::recieveView(QImage image, qint32 play_time)
 {
     QString endSample = QString::number(_signal_matrix.rows() - 1, 'f', 0);
     QString endTime = QString::number((_to / _sample_rate) + _offset_time, 'f', 4);
 
     topoLabel->setPixmap(QPixmap::fromImage(image));
-    //if(image != nullptr) delete image;
 
     ui->sli_topoTime->setValue(play_time);
     ui->lb_topotime->setText("sample: " + QString::number(play_time, 'f', 0) + " / " + endSample +
@@ -4024,19 +3725,19 @@ void MainWindow::recieve_view(QImage image, qint32 play_time)
         _played = true;
         play_time = 0;
         ui->btt_playtopo->setIcon(QIcon(":/images/icons/play.png"));
-        topoLabel->setPixmap(QPixmap::fromImage(_topoPlotImages.at(0)));
+        topoLabel->setPixmap(QPixmap::fromImage(_topoPlotImageList.at(0)));
 
         ui->sli_topoTime->setValue(play_time);
         ui->lb_topotime->setText("sample: " + QString::number(play_time, 'f', 0) + " / " + endSample +
                                  "  time: " + QString::number((_from + play_time) / _sample_rate + _offset_time, 'f', 4) + " / " + endTime + "sec");
-        repaint();
+
     }
     _last_play_time = play_time;
 }
 
 //*************************************************************************************************************
 
-void PlayTopoPlot::play_tplot(topo_images topoImages, qint32 play_time, qint32 maxPlayTime)
+void PlayTopoPlot::playTopoPlot(imageList topoImages, qint32 play_time, qint32 maxPlayTime)
 {
     for(qint32 time = play_time; time < maxPlayTime; time++)
     {
@@ -4046,7 +3747,7 @@ void PlayTopoPlot::play_tplot(topo_images topoImages, qint32 play_time, qint32 m
             this->deleteLater();
             return;
         }
-        emit(send_view(topoImages.at(time),  time));
+        emit(sendView(topoImages.at(time),  time));
         Sleep(150);
     }
 }

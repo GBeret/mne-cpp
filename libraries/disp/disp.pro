@@ -101,7 +101,7 @@ SOURCES += \
     plots/plot.cpp \
     plots/graph.cpp \
     plots/tfplot.cpp \
-    plots/tpplot.cpp \
+    plots/topoplot.cpp \
     plots/helpers/colormap.cpp \
     viewers/filterdesignview.cpp \
     viewers/averagelayoutview.cpp \
@@ -147,13 +147,14 @@ SOURCES += \
     viewers/helpers/tfplotscene.cpp \
     viewers/helpers/tfplotsceneitem.cpp
 
+
 HEADERS += \
     disp_global.h \
     plots/imagesc.h \
     plots/plot.h \
-    plots/tpplot.h \
     plots/graph.h \
     plots/tfplot.h \
+    plots/topoplot.h \
     plots/helpers/colormap.h \
     viewers/filterdesignview.h \
     viewers/averagelayoutview.h \
@@ -196,6 +197,7 @@ HEADERS += \
     viewers/helpers/channeldatadelegate.h \
     viewers/helpers/tfplotscene.h \
     viewers/helpers/tfplotsceneitem.h
+
 
 qtHaveModule(charts) {
     SOURCES += \

@@ -1,6 +1,6 @@
 //=============================================================================================================
 /**
-* @file     tpplot.cpp
+* @file     topoplot.cpp
 * @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
 *           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
 * @version  1.0
@@ -37,7 +37,7 @@
 // INCLUDES
 //=============================================================================================================
 
-#include "tpplot.h"
+#include "topoplot.h"
 #include "math.h"
 #include <limits>
 #include <iostream>
@@ -53,12 +53,165 @@
 //=============================================================================================================
 
 using namespace DISPLIB;
+using namespace Eigen;
 
-Tpplot::Tpplot() {}
+TopoPlot::TopoPlot() {}
 
 //*************************************************************************************************************
 
-QMap<QString,QPoint> Tpplot::createMapGrid(QMap<QString,QPointF> layoutMap, QSize topo_matrix_size)
+void TopoPlot::recieveInputStartCalculation(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor)
+{
+    createTopoPlotImageList(signalMatrix, layoutMap, topoMatrixSize, imageSize, cmap, dampingFactor);
+}
+
+//*************************************************************************************************************
+
+QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize,  const QSize imageSize, const ColorMaps cmap, const qint32 dampingFactor)
+{
+    QElapsedTimer timer;
+    timer.start();
+
+    QList<QImage> topoPlotImages;
+    QMap<QString, QPoint> topoMap = createMapGrid(layoutMap, topoMatrixSize);
+
+    QList<TopoPlotInputData> topoMatrixData;
+    int iThreadSize = QThread::idealThreadCount()*2;
+    int iStepsSize = signalMatrix.rows()/iThreadSize;
+    int iResidual = signalMatrix.rows()%iThreadSize;
+
+    TopoPlotInputData topoMatrixTemp;
+    topoMatrixTemp.signalMatrix = signalMatrix;
+    topoMatrixTemp.topoMatrixSize = topoMatrixSize;
+    topoMatrixTemp.topoMap = topoMap;
+    topoMatrixTemp.dampingFactor = dampingFactor;
+
+    for (int i = 0; i < iThreadSize; ++i)
+    {
+        topoMatrixTemp.iRangeLow = i*iStepsSize;
+        topoMatrixTemp.iRangeHigh = i*iStepsSize+iStepsSize;
+        topoMatrixData.append(topoMatrixTemp);
+    }
+
+    topoMatrixTemp.iRangeLow = iThreadSize*iStepsSize;
+    topoMatrixTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
+    topoMatrixData.append(topoMatrixTemp);
+
+    QFuture<QList<MatrixXd>> topoMatrixList = QtConcurrent::mappedReduced(topoMatrixData, createTopoPlotMatrix, reduceMatrix, QtConcurrent::OrderedReduce);
+    topoMatrixList.waitForFinished();
+
+    qDebug() << "make_topoMatrix: " << timer.elapsed() << " ms";
+
+    // maxValue and minValue
+    qreal minCoeff = topoMatrixList.result().at(0).minCoeff();
+    for(int i = 0; i < topoMatrixList.result().length(); i++)
+    {
+        if(minCoeff > topoMatrixList.result().at(i).minCoeff())
+             minCoeff = topoMatrixList.result().at(i).minCoeff();
+    }
+
+    QList<MatrixXd> absTopoMatrixList;
+    for(int i = 0; i < topoMatrixList.result().length(); i++)
+    {
+         MatrixXd topoMatrix = topoMatrixList.result().at(i);
+         topoMatrix.array() += abs(minCoeff);
+         absTopoMatrixList.append(topoMatrix);
+    }
+
+    //find max value
+    qreal maxCoeff =  absTopoMatrixList.at(0).maxCoeff();
+    for(int i = 0; i < absTopoMatrixList.length(); i++)
+    {
+        if(maxCoeff < absTopoMatrixList.at(i).maxCoeff())
+             maxCoeff =absTopoMatrixList.at(i).maxCoeff();
+    }
+
+    QList<MatrixXd> normTopoMatrixList;
+    for(int i = 0; i < absTopoMatrixList.length(); i++)
+    {
+        MatrixXd topoMatrix = absTopoMatrixList.at(i);
+        normTopoMatrixList.append(topoMatrix /=  maxCoeff);
+    }
+
+    qDebug() << "normalization_topoMatrix: " << timer.elapsed() << " ms";
+
+    QList<TopoPlotInputData> topoImageData;
+    iThreadSize = QThread::idealThreadCount()*2;
+    iStepsSize = normTopoMatrixList.count()/iThreadSize;
+    iResidual = normTopoMatrixList.count()%iThreadSize;
+
+    TopoPlotInputData topoImageTemp;
+    topoImageTemp.topoMatrixList = normTopoMatrixList;
+    topoImageTemp.topoMatrixSize = topoMatrixSize;
+    topoImageTemp.imageSize = imageSize;
+    topoMatrixTemp.colorMap = cmap;
+
+    for (int i = 0; i < iThreadSize; ++i)
+    {
+        topoImageTemp.iRangeLow = i*iStepsSize;
+        topoImageTemp.iRangeHigh = i*iStepsSize+iStepsSize;
+        topoImageData.append(topoImageTemp);
+    }
+
+    topoImageTemp.iRangeLow = iThreadSize*iStepsSize;
+    topoImageTemp.iRangeHigh = iThreadSize*iStepsSize+iResidual;
+    topoImageData.append(topoImageTemp);
+
+    QFuture<QList<QImage>> topoImages = QtConcurrent::mappedReduced(topoImageData, createTopoPlotImages, reduceImages, QtConcurrent::OrderedReduce);
+    topoImages.waitForFinished();
+
+    qDebug() << "make_topoImage: " << timer.elapsed() << " ms";
+
+    emit sendResult(topoImages.result(), true);
+
+    return topoImages.result();
+}
+
+ //*************************************************************************************************************
+
+ QList<MatrixXd> TopoPlot::createTopoPlotMatrix(const TopoPlotInputData& inputData)
+ {
+     QList<MatrixXd> matrixList;
+     for(qint32 time_sample = inputData.iRangeLow; time_sample < inputData.iRangeHigh; time_sample++)
+     {
+          MatrixXd topoMatrix = createGridPointMatrix(inputData.signalMatrix, inputData.topoMap, inputData.topoMatrixSize, time_sample);
+          topoMatrix  = calcBilinearInterpolation(topoMatrix, inputData.topoMap, inputData.dampingFactor);
+          matrixList.append(topoMatrix);
+     }
+     return matrixList;
+ }
+
+ //*************************************************************************************************************
+
+ QList<QImage> TopoPlot::createTopoPlotImages(const TopoPlotInputData& inputData)
+ {
+     QList<QImage> imageList;
+     for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
+     {
+         QImage * image = creatPlotImage(inputData.topoMatrixList.at(i), inputData.topoMatrixSize, Jet);
+         *image = image->scaledToHeight(qRound(inputData.imageSize.height() * 0.89), Qt::FastTransformation);
+         imageList.append(*image);
+         if(image != nullptr) delete image;
+     }
+     return imageList;
+ }
+
+ //*************************************************************************************************************
+
+ void TopoPlot::reduceMatrix(QList<MatrixXd> &resultData, const QList<MatrixXd> &data)
+ {
+     resultData.append(data);
+ }
+
+ //*************************************************************************************************************
+
+ void TopoPlot::reduceImages(QList<QImage> &resultData, const QList<QImage> &data)
+ {
+     resultData.append(data);
+ }
+
+//*************************************************************************************************************
+
+QMap<QString,QPoint> TopoPlot::createMapGrid(QMap<QString,QPointF> layoutMap, QSize topo_matrix_size)
 {    
     QMap<QString, QPoint> layoutMapGrid;
     qreal minXCoor = std::numeric_limits<int>::max();
@@ -112,7 +265,7 @@ QMap<QString,QPoint> Tpplot::createMapGrid(QMap<QString,QPointF> layoutMap, QSiz
 
 //*************************************************************************************************************
 
-MatrixXd Tpplot::normSignal(MatrixXd signalMatrix)
+MatrixXd TopoPlot::normSignal(MatrixXd signalMatrix)
 {
     //normalisation foreach channel
     for(qint32 chnI = 0; chnI < signalMatrix.cols(); chnI++)   // over all Channels
@@ -131,7 +284,7 @@ MatrixXd Tpplot::normSignal(MatrixXd signalMatrix)
 
 //*************************************************************************************************************
 
-MatrixXd Tpplot::createGridPointMatrix(MatrixXd signal, QMap<QString,QPoint> mapGrid, QSize gridPointMatrixSize, qint32 timeSample)
+MatrixXd TopoPlot::createGridPointMatrix(const MatrixXd signal, const QMap<QString, QPoint> mapGrid, const QSize gridPointMatrixSize, const qint32 timeSample)
 {
     qint32 channel = 0;   
     MatrixXd tp_map =  MatrixXd::Zero(gridPointMatrixSize.height(), gridPointMatrixSize.width());
@@ -153,14 +306,9 @@ MatrixXd Tpplot::createGridPointMatrix(MatrixXd signal, QMap<QString,QPoint> map
 
 //*************************************************************************************************************
 
-QImage * Tpplot::creatPlotImage(MatrixXd topoMatrix, QSize imageSize, ColorMaps cmap, bool nomalization)
+QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const ColorMaps cmap)
 {
-    //normalisation of the tp-matrix
-    if(nomalization)
-    {
-        topoMatrix.array() += abs(topoMatrix.minCoeff());
-        topoMatrix /= topoMatrix.maxCoeff();
-    }
+
 
     qint32 y_factor =  topoMatrix.rows() / imageSize.height();
     qint32 x_factor =  topoMatrix.cols() / imageSize.width();
@@ -212,7 +360,7 @@ QImage * Tpplot::creatPlotImage(MatrixXd topoMatrix, QSize imageSize, ColorMaps 
 
 //*************************************************************************************************************
 
-MatrixXd Tpplot::calcNearestNeighboursInterpolation(MatrixXd topoMatrix, QMap<QString, QPoint> mapGrid)
+MatrixXd TopoPlot::calcNearestNeighboursInterpolation(MatrixXd topoMatrix, const QMap<QString, QPoint> mapGrid)
 {
 
     QList<QPoint> coors = mapGrid.values();
@@ -329,7 +477,7 @@ MatrixXd Tpplot::calcNearestNeighboursInterpolation(MatrixXd topoMatrix, QMap<QS
 
 //*************************************************************************************************************
 
-MatrixXd Tpplot::calcBilinearInterpolation(MatrixXd gridPointMatrix, QMap<QString, QPoint> mapGrid)
+MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, const QMap<QString, QPoint> mapGrid, const qint32 dampingFactor)
 {
     QList<QPoint> coors = mapGrid.values();
     MatrixXd topoMatrix = MatrixXd::Zero(gridPointMatrix.rows(), gridPointMatrix.cols());
@@ -417,7 +565,7 @@ MatrixXd Tpplot::calcBilinearInterpolation(MatrixXd gridPointMatrix, QMap<QStrin
                 qreal scalar = 1 - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) / sqrt( pow(gridPointMatrix.cols(), 2) + pow(gridPointMatrix.rows(), 2)) ;
                 //qreal scalar = sqrt( pow(topoMatrix.cols(), 2) + pow(topoMatrix.rows(), 2)) - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) ;
 
-                topoMatrix(y_axis, x_axis) += pow(scalar, 20) * gridPointMatrix(y,x);
+                topoMatrix(y_axis, x_axis) += pow(scalar, dampingFactor) * gridPointMatrix(y,x);
                 //yxf(y_axis, x_axis) += pow(1-scalar,-2)*topoMatrix(y,x); decreasing is too fast
                 //yxf(y_axis, x_axis) += 1/pow(scalar,2)  *topoMatrix(y,x);
                 // * exp(-10*pow((scalar-1),2))
@@ -435,52 +583,6 @@ MatrixXd Tpplot::calcBilinearInterpolation(MatrixXd gridPointMatrix, QMap<QStrin
 
 //*************************************************************************************************************
 
-MatrixXd Tpplot::computeyxf(const InterpolationInputData& inputData)
-{
-    MatrixXd topoMatrix = MatrixXd::Zero(inputData.maInputData.rows(), inputData.maInputData.cols()); //inputData.maInputData;
-    //somehow bilininear
-    for(qint32 y_axis = inputData.iRangeLow; y_axis < inputData.iRangeHigh; y_axis++) //y_axis to interpolate among this axis
-    {
-        for(qint32 x_axis = 0; x_axis < inputData.maInputData.cols(); x_axis++) //x_axis to interpolate among this axis
-        {
-            qint32 y= 0;
-            qint32 x = 0;
-            //don´t interpolate already given points
-            //if(coors.indexOf(QPoint(x_axis, y_axis)) > 0)
-            //    continue;
-
-            for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
-            {
-                x = inputData.coors[i].x(); //known Coordinate x
-                y = inputData.coors[i].y(); // known coordinate y
-
-                qreal scalar = 1 - sqrt(pow((x - inputData.x), 2) + pow((y - inputData.y), 2)) / sqrt( pow(inputData.maInputData.cols(), 2) + pow(inputData.maInputData.rows(), 2)) ;
-                //qreal scalar = sqrt( pow(topoMatrix.cols(), 2) + pow(topoMatrix.rows(), 2)) - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) ;
-                topoMatrix(inputData.y, inputData.x) += pow(scalar, 20) * inputData.maInputData(y,x);
-                //yxf(y_axis, x_axis) += pow(1-scalar,-2)*topoMatrix(y,x); decreasing is too fast
-                //yxf(y_axis, x_axis) += 1/pow(scalar,2)  *topoMatrix(y,x);
-                // * exp(-10*pow((scalar-1),2))
-                //qreal test = topoMatrix(y,x);
-            }
-            //if(coors.length() != 0)
-            //   topoMatrix(y_axis, x_axis) /= coors.length(); //normalisation to number of known points
-        }
-    }
-    //qreal minCoeff = topoMatrix.minCoeff();
-    //topoMatrix.array() += abs(topoMatrix.minCoeff());// + topoMatrix;
-
-    return topoMatrix;
-}
-
-//*************************************************************************************************************
-
-void Tpplot::reduce(MatrixXd &resultData, const MatrixXd &data)
-{
-    if(resultData.size() == 0)
-        resultData = data;
-    else
-        resultData += data;
-}
 
 
 
