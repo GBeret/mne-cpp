@@ -4,11 +4,11 @@
 * @author   Martin Henfling <martin.henfling@tu-ilmenau.de>;
 *           Daniel Knobl <daniel.knobl@tu-ilmenau.de>;
 * @version  1.0
-* @date     September, 2015
+* @date     March, 2019
 *
 * @section  LICENSE
 *
-* Copyright (C) 2014, Martin Henfling and Daniel Knobl. All rights reserved.
+* Copyright (C) 2019, Martin Henfling and Daniel Knobl. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that
 * the following conditions are met:
@@ -48,24 +48,16 @@
 // Qt INCLUDES
 //=============================================================================================================
 
-#include <QImage>
-#include <QGridLayout>
-#include <QGraphicsView>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsSceneResizeEvent>
-#include <QtConcurrent>
-//#include <QList>
-//#include <QSize>
+//#include <QtConcurrent>
+#include <QtConcurrent/QtConcurrent>
 
 //*************************************************************************************************************
 //=============================================================================================================
 // Eigen INCLUDES
 //=============================================================================================================
 
+#include <QImage>
 #include <Eigen/Core>
-#include <Eigen/SparseCore>
-#include <unsupported/Eigen/FFT>
-#include <unsupported/Eigen/Splines>
 
 namespace DISPLIB
 {
@@ -88,9 +80,10 @@ struct TopoPlotInputData
 // USED NAMESPACES
 //=============================================================================================================
 
+using namespace Eigen;
+
 class DISPSHARED_EXPORT TopoPlot : public QThread
 {
-
     Q_OBJECT
 
     typedef QMap<QString, QPointF> channelMap;
@@ -100,26 +93,198 @@ class DISPSHARED_EXPORT TopoPlot : public QThread
 
 public:
     TopoPlot();
-    //~TopoPlot();
-    static QList<Eigen::MatrixXd> createTopoPlotMatrix(const TopoPlotInputData& inputData);
-    static QList<QImage> createTopoPlotImages(const TopoPlotInputData& inputData);
-    static void reduceMatrix(QList<Eigen::MatrixXd> &resultData, const QList<Eigen::MatrixXd> &data);
-    static void reduceImages(QList<QImage> &resultData, const QList<QImage> &data);
+    ~TopoPlot();
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_createTopoPlotImageList
+    *
+    * ### Topoplot public methode ###
+    *
+    * calculated foreach timesample and selected channel the topoplot images
+    *
+    * @param[in]    signalMatrix        signal with all channels
+    * @param[in]    layoutMap           layout of the electrodes
+    * @param[in]    topoMatrixSize      size of the new topomatrix
+    * @param[in]    imageSize           size of the topoplot image
+    * @param[in]    cmap                Colormap of the topoplot image
+    * @param[in]    dampingFactor       damping factor of the interpolation
+    *
+    * @return List of topoplot images
+    */
     QList<QImage> createTopoPlotImageList(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor);
 
-private:
+protected:
 
+    //==========================================================================================================
+    /**
+    * TopoPlot_createTopoPlotMatrix
+    *
+    * ### Topoplot protected methode ###
+    *
+    * calculated the interpolation for topoplot in matrix
+    *
+    * @param[in]    inputData        all datas fpr interpolation
+    *
+    *
+    * @return List of topoplot matrix
+    */
+    static QList<Eigen::MatrixXd> createTopoPlotMatrix(const TopoPlotInputData& inputData);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_createTopoPlotImages
+    *
+    * ### Topoplot protected methode ###
+    *
+    * tranfer topoplot matrix to image with colormap
+    *
+    * @param[in]    inputData        all datas topoplot interpolation
+    *
+    * @return List of topoplot matrix
+    */
+    static QList<QImage> createTopoPlotImages(const TopoPlotInputData& inputData);
+
+    //=========================================================================================================
+    /**
+    * Sums up (reduces) the in parallel processed topoplot matrix.
+    *
+    * ### Topoplot protected methode ###
+    *
+    * @param[out] resultData    The result data.
+    * @param[in]  data          The incoming, temporary result data.
+    *
+    * @return void
+    */
+    static void reduceMatrix(QList<Eigen::MatrixXd> &resultData, const QList<Eigen::MatrixXd> &data);
+
+    //=========================================================================================================
+    /**
+    * Sums up (reduces) the in parallel processed topoplot images.
+    *
+    * ### Topoplot protected methode ###
+    *
+    * @param[out] resultData    The result data.
+    * @param[in]  data          The incoming, temporary result data.
+    *
+    * @return void
+    */
+    static void reduceImages(QList<QImage> &resultData, const QList<QImage> &data);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_createMapGrid
+    *
+    * ### Topoplot protected methode ###
+    *
+    * tranfer the layout in a spezific layoutsize
+    *
+    * @param[in]    layoutMap            layout of the electrodes
+    * @param[in]    topo_matrix_size     size of the new matrix
+    *
+    * @return map of gridpoints
+    */
     static QMap<QString,QPoint> createMapGrid(const QMap<QString,QPointF> layoutMap, const QSize topo_matrix_size);
-    static Eigen::MatrixXd normSignal(Eigen::MatrixXd signalMatrix);
-    static Eigen::MatrixXd createGridPointMatrix(const Eigen::MatrixXd normSignal, const QMap<QString, QPoint> mapGrid, const QSize gridPointMatrixSize, const qint32 timeSample);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_createMapGrid
+    *
+    * ### Topoplot protected methode ###
+    *
+    * calculated the the value of each channel to the gridpointmap in a matrix
+    *
+    * @param[in]    signal                  signal with all channels
+    * @param[in]    mapGrid                 map of gridpoints
+    * @param[in]    gridPointMatrixSize     size gridpoint matrix
+    * @param[in]    timeSample              the timesample of signal wich should calculat
+    *
+    * @return grid point matrix
+    */
+    static Eigen::MatrixXd createGridPointMatrix(const Eigen::MatrixXd signal, const QMap<QString, QPoint> mapGrid, const QSize gridPointMatrixSize, const qint32 timeSample);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_creatPlotImage
+    *
+    * ### Topoplot protected methode ###
+    *
+    * tranfer topoplot matrix to image with colormap
+    *
+    * @param[in]    topoMatrix      the interpolated matrix
+    * @param[in]    imageSize       size of the new image
+    * @param[in]    cmap            colormap of the new image
+    *
+    * @return topoplot image
+    */
     static QImage * creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const ColorMaps cmap);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_calcNearestNeighboursInterpolation
+    *
+    * ### Topoplot protected methode ###
+    *
+    * interpolat by  NearestNeighbours interpolation the grip point matrix to topoplot matrix
+    *
+    * @param[in]    topoMatrix      the interpolated matrix
+    * @param[in]    mapGrid         map of gridpoints
+    *
+    * @return topoplot matrix
+    */
     static Eigen::MatrixXd calcNearestNeighboursInterpolation(Eigen::MatrixXd topoMatrix, const QMap<QString,QPoint> mapGrid);
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_calcBilinearInterpolation
+    *
+    * ### Topoplot protected methode ###
+    *
+    * interpolate bilinear interpolation the grip point matrix to topoplot matrix
+    *
+    * @param[in]    topoMatrix      the interpolated matrix
+    * @param[in]    mapGrid         map of gridpoints
+    * @param[in]    dampingFactor   damping factor of the interpolation
+    *
+    * @return topoplot matrix
+    */
     static Eigen::MatrixXd calcBilinearInterpolation(const MatrixXd topoMatrix, const QMap<QString, QPoint> mapGrid, const qint32 dampingFactor);
 
 public slots:
+    //==========================================================================================================
+    /**
+    * TopoPlot_recieveInputStartCalculation
+    *
+    * ### Topoplot public slot ###
+    *
+    * recieve the input and start calculation for topoplot
+    *
+    * @param[in]    signalMatrix        signal with all channels
+    * @param[in]    layoutMap           layout of the electrodes
+    * @param[in]    topoMatrixSize      size of the new topomatrix
+    * @param[in]    imageSize           size of the topoplot image
+    * @param[in]    cmap                Colormap of the topoplot image
+    * @param[in]    dampingFactor       damping factor of the interpolation
+    *
+    * @return void
+    */
     void recieveInputStartCalculation(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor);
 
 signals:
+
+    //==========================================================================================================
+    /**
+    * TopoPlot_sendResult
+    *
+    * ### Topoplot signal ###
+    *
+    * send the list of topoplot images to the call function
+    *
+    * @param[in]    topoPlotImageList  result of the calculation (list of topoplot images)
+    * @param[in]    finished           true, if calculation ready
+    *
+    * @return void
+    */
     void sendResult(imageList topoPlotImageList, bool finished);
 };
 

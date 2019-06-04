@@ -153,7 +153,7 @@ class MainWindow : public QMainWindow, ColorMap
 public:
     //**********************************************************************************************************
     //constructor
-    explicit MainWindow(QWidget *parent = 0);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     //**********************************************************************************************************
 
@@ -749,8 +749,7 @@ private:
     FiffInfo pick_info;
     QPalette pal;
     QTimer *counter_timer;
-    QLabel * topoLabel;  
-
+    QLabel * topoLabel;
     QMap<QString,QPointF>           m_layoutMap;                         /**< QMap with the loaded layout. each channel name correspond to a QPointF variable. */
     TFPlotScene*                 m_tfPlotScene;                          /**< Pointer to the selection scene class. */
     QList<TFPlotItemStruct> m_tfPlotItemStructList;
@@ -999,7 +998,7 @@ private:
     * prepares update for painting if selection of atoms changes
     *
     */
-    void MainWindow::atom_map_selection_changed();
+    void atom_map_selection_changed();
 
     //==========================================================================================================
     /**
@@ -1236,7 +1235,7 @@ public slots:
     /**
     * play_topoplot
     *
-    * ### MP toolbox main function ###
+    * ### PlayTopoPlot main function ###
     *
     * playing the topoplot
     *
@@ -1245,6 +1244,16 @@ public slots:
     void playTopoPlot(imageList topoImages, qint32 play_time, qint32 max_play_time);
 
 signals:
+    //==========================================================================================================
+    /**
+    * sendView
+    *
+    * ### PlayTopoPlot main function ###
+    *
+    * send result back to call
+    *
+    * @return   void
+    */
     void sendView(QImage image, qint32 play_time);
 
 };

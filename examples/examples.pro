@@ -55,6 +55,7 @@ SUBDIRS += \
     ex_read_fwd \
     ex_read_raw \
     ex_read_write_raw \
+    ex_topoplot
 
 !contains(MNECPP_CONFIG, minimalVersion) {
     qtHaveModule(charts) {
