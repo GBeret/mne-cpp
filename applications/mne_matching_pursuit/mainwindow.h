@@ -680,11 +680,7 @@ private slots:
 
     //==========================================================================================================
 
-    void recieveView(QImage image, qint32 play_time);
-
-    //==========================================================================================================
-
-    void recieveTopoplotResult(QList<QImage>, bool finished);
+    void recieveView(QImage image, qint32 play_time);   
 
     //==========================================================================================================
 
@@ -709,6 +705,7 @@ private:
     bool all_select_change; //if all atoms selected, selected_atom_map doesn´t change
     bool was_partialchecked;
     bool read_fiff_changed;
+    bool topoPlotHasCalculated;
     bool is_white;
     bool is_calulating;
     fiff_int_t last_to;

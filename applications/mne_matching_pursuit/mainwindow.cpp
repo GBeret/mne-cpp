@@ -413,6 +413,7 @@ void MainWindow::open_file()
     original_signal_matrix = _signal_matrix;
     fill_channel_combobox();
     read_fiff_changed = true;
+    topoPlotHasCalculated = false;
 
     last_from = _from;
     last_to = _to;
@@ -2356,6 +2357,7 @@ void MainWindow::on_dsb_sample_rate_editingFinished()
     if(!read_fiff_changed)
     {
         read_fiff_changed = true;
+        topoPlotHasCalculated = false;
 
         ui->dsb_from->setMaximum((_last_sample - 63) / _sample_rate);
         ui->dsb_to->setMinimum((_first_sample + 63) / _sample_rate);
@@ -2435,6 +2437,7 @@ void MainWindow::on_dsb_from_valueChanged(double arg1)
     if(read_fiff_changed) return;
 
     read_fiff_changed = true;
+    topoPlotHasCalculated = false;
     _from = floor((arg1 - _offset_time) * _sample_rate);
     if(_from < 0)//stay consistent despite negative time values
     {
@@ -2464,6 +2467,7 @@ void MainWindow::on_dsb_to_valueChanged(double arg1)
     if(read_fiff_changed) return;
 
     read_fiff_changed = true;
+    topoPlotHasCalculated = false;
     _to = floor((arg1 - _offset_time) * _sample_rate);
     if(_to > _last_sample - _offset_time * _sample_rate)
     {
@@ -2494,6 +2498,7 @@ void MainWindow::on_sb_sample_count_valueChanged(int arg1)
     if(read_fiff_changed) return;
 
     read_fiff_changed = true;
+    topoPlotHasCalculated = false;
     _to = _from + arg1 - 1;
 
     if(_to > _last_sample - _offset_time * _sample_rate)
@@ -3407,6 +3412,7 @@ void MainWindow::on_mouse_button_release()
     if(QString::compare(ui->btt_Calc->text(), "cancel", Qt::CaseInsensitive) == 0 || QString::compare(ui->btt_Calc->text(), "wait...", Qt::CaseInsensitive) == 0)
         return;
     read_fiff_changed = true;
+    topoPlotHasCalculated = false;
 
     ui->dsb_from->setValue(_from / _sample_rate + _offset_time);
     ui->dsb_to->setValue(_to / _sample_rate + _offset_time);
@@ -3451,7 +3457,7 @@ void MainWindow::on_tabWidget_currentChanged(int index)
     {
        //ToDo: m_tfPlotScene->fitInView();
     }
-    else if(index == 2)
+    else if(index == 2 )
     {
         initTopoPlot();
     }
@@ -3611,14 +3617,11 @@ void MainWindow::updateTFScene()
 //*************************************************************************************************************
 
  void MainWindow::initTopoPlot()
- {
+ {    
      QSize topoSize(64, 64);//(256, 256);//(64, 64);
 
      QMap<QString, QPointF> selLayoutMap;
      QMapIterator<qint32, bool> selChn(select_channel_map);
-
-     if(_signal_matrix.isZero())     
-         return;
 
      while (selChn.hasNext())
      {
@@ -3633,40 +3636,22 @@ void MainWindow::updateTFScene()
      ui->btt_playtopo->setEnabled(false);
      ui->lb_topotime->setAlignment(Qt::AlignRight);
      ui->sli_topoTime->setMinimum(0);
-     ui->sli_topoTime->setMaximum(_signal_matrix.rows());
 
-     TopoPlot *create_plot = new TopoPlot();
-     QList<QImage> imageList = create_plot->createTopoPlotImageList(_signal_matrix, selLayoutMap, topoSize, ui->tabWidget->size(), Jet, 20);
-     _topoPlotImageList = imageList;
+     if(_signal_matrix.isZero())
+         return;
+
+     ui->sli_topoTime->setMaximum(_signal_matrix.rows());
+     if(topoPlotHasCalculated == false)
+     {
+         TopoPlot *create_plot = new TopoPlot();
+         QList<QImage> imageList = create_plot->createTopoPlotImageList(_signal_matrix, selLayoutMap, topoSize, ui->tabWidget->size(), Jet, 20);
+         _topoPlotImageList = imageList;
+         topoPlotHasCalculated = true;
+     }
 
      topoLabel->setPixmap(QPixmap::fromImage(_topoPlotImageList.at(0)));
-     repaint();
-     ui->btt_playtopo->setEnabled(true);
-
-     /*
-     TopoPlot *create_plot = new TopoPlot();
-     QThread *create_plot_thread = new QThread();
-     create_plot->moveToThread(create_plot_thread);
-     connect(this, SIGNAL(sendtoTopoplot(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32)),
-             create_plot, SLOT(recieveInputStartCalculation(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32)));
-     connect(create_plot, SIGNAL(sendResult(imageList, bool)), this, SLOT(recieveTopoplotResult(imageList, bool)));
-     connect(create_plot_thread, SIGNAL(finished()), create_plot_thread, SLOT(deleteLater()));
-     connect(create_plot, SIGNAL(finished()), create_plot_thread, SLOT(deleteLater()));
-
-     emit(sendtoTopoplot(_signal_matrix, selLayoutMap, topoSize, ui->tabWidget->size(), Jet, 20));
-     create_plot->start();
-     */
- }
-
- //*************************************************************************************************************
-
- void MainWindow::recieveTopoplotResult(imageList topoPlotImageList, bool finished)
- {
-     if(finished)
-     {
-         _topoPlotImageList = topoPlotImageList;
-         ui->btt_playtopo->setEnabled(true);
-     }
+     repaint();     
+     ui->btt_playtopo->setEnabled(true);    
  }
 
 //*************************************************************************************************************
@@ -3681,6 +3666,10 @@ void MainWindow::on_btt_playtopo_clicked()
     {
         ui->btt_playtopo->setIcon(QIcon(":/images/icons/play.png"));
         play_topo_Thread->requestInterruption();
+        disconnect(this, SIGNAL(send_play_input(imageList , qint32, qint32)), play_TopoPlot, SLOT(playTopoPlot(imageList,  qint32, qint32)));
+        disconnect(play_TopoPlot, SIGNAL(sendView(QImage, qint32)), this, SLOT(recieveView(QImage, qint32)));
+        disconnect(play_topo_Thread, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
+        disconnect(play_TopoPlot, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
     }
     else
     {
@@ -3723,6 +3712,12 @@ void MainWindow::recieveView(QImage image, qint32 play_time)
     {
         Sleep(500);
         _played = true;
+        disconnect(this, SIGNAL(send_play_input(imageList , qint32, qint32)), play_TopoPlot, SLOT(playTopoPlot(imageList,  qint32, qint32)));
+        disconnect(play_TopoPlot, SIGNAL(sendView(QImage, qint32)), this, SLOT(recieveView(QImage, qint32)));
+        disconnect(play_topo_Thread, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
+        disconnect(play_TopoPlot, SIGNAL(finished()), play_topo_Thread, SLOT(deleteLater()));
+        play_topo_Thread->quit();
+        play_topo_Thread->deleteLater();
         play_time = 0;
         ui->btt_playtopo->setIcon(QIcon(":/images/icons/play.png"));
         topoLabel->setPixmap(QPixmap::fromImage(_topoPlotImageList.at(0)));
@@ -3746,7 +3741,7 @@ void PlayTopoPlot::playTopoPlot(imageList topoImages, qint32 play_time, qint32 m
             this->quit();
             this->deleteLater();
             return;
-        }
+        }        
         emit(sendView(topoImages.at(time),  time));
         Sleep(150);
     }

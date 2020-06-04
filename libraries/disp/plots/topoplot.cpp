@@ -78,6 +78,9 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     QList<QImage> topoPlotImages;
     QMap<QString, QPoint> topoMap = createMapGrid(layoutMap, topoMatrixSize);
 
+    qDebug() << "createMapGrid: " << timer.elapsed() << " ms";
+    timer.restart();
+
     QList<TopoPlotInputData> topoMatrixData;
     int iThreadSize = QThread::idealThreadCount()*2;
     int iStepsSize = signalMatrix.rows()/iThreadSize;
@@ -104,6 +107,7 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     topoMatrixList.waitForFinished();
 
     qDebug() << "make_topoMatrix: " << timer.elapsed() << " ms";
+    timer.restart();
 
     // maxValue and minValue
     qreal minCoeff = topoMatrixList.result().at(0).minCoeff();
@@ -137,6 +141,7 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     }
 
     qDebug() << "normalization_topoMatrix: " << timer.elapsed() << " ms";
+    timer.restart();
 
     QList<TopoPlotInputData> topoImageData;
     iThreadSize = QThread::idealThreadCount()*2;
@@ -170,7 +175,7 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     return topoImages.result();
 }
 
- //*************************************************************************************************************
+//*************************************************************************************************************
 
  QList<MatrixXd> TopoPlot::createTopoPlotMatrix(const TopoPlotInputData& inputData)
  {
@@ -188,7 +193,7 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
 
  QList<QImage> TopoPlot::createTopoPlotImages(const TopoPlotInputData& inputData)
  {
-     QList<QImage> imageList;
+     QList<QImage> imageList;    
      for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
      {
          QImage * image = creatPlotImage(inputData.topoMatrixList.at(i), inputData.topoMatrixSize, Jet);
@@ -287,6 +292,44 @@ MatrixXd TopoPlot::createGridPointMatrix(const MatrixXd signal, const QMap<QStri
         channel++;
     }
     return tp_map;
+}
+
+//*************************************************************************************************************
+
+MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, const QMap<QString, QPoint> mapGrid, const qint32 dampingFactor)
+{
+    QList<QPoint> coors = mapGrid.values();
+    MatrixXd topoMatrix = MatrixXd::Zero(gridPointMatrix.rows(), gridPointMatrix.cols());
+
+    for(qint32 y_axis = 0; y_axis < gridPointMatrix.rows(); y_axis++) //y_axis to interpolate among this axis
+    {
+        for(qint32 x_axis = 0; x_axis < gridPointMatrix.cols(); x_axis++) //x_axis to interpolate among this axis
+        {
+            qint32 y= 0;
+            qint32 x = 0;
+
+            //don´t interpolate already given points
+            //if(coors.indexOf(QPoint(x_axis, y_axis)) > 0)
+            //    continue;
+
+            for(qint32 i = 0; i < coors.length(); i++)
+            {
+                x = coors[i].x(); //known Coordinate x
+                y = coors[i].y(); // known coordinate y
+
+                qreal scalar = 1 - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) / sqrt( pow(gridPointMatrix.cols(), 2) + pow(gridPointMatrix.rows(), 2)) ;
+                //qreal scalar = sqrt( pow(topoMatrix.cols(), 2) + pow(topoMatrix.rows(), 2)) - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) ;
+
+                topoMatrix(y_axis, x_axis) += pow(scalar, dampingFactor) * gridPointMatrix(y,x);
+                //yxf(y_axis, x_axis) += pow(1-scalar,-2)*topoMatrix(y,x); decreasing is too fast
+                //yxf(y_axis, x_axis) += 1/pow(scalar,2)  *topoMatrix(y,x);
+                // * exp(-10*pow((scalar-1),2))
+            }
+            //if(coors.length() != 0)
+            //   topoMatrix(y_axis, x_axis) /= coors.length(); //normalisation to number of known points
+        }
+    }
+    return topoMatrix;
 }
 
 //*************************************************************************************************************
@@ -391,60 +434,3 @@ MatrixXd TopoPlot::calcNearestNeighboursInterpolation(MatrixXd topoMatrix, const
 }
 
 //*************************************************************************************************************
-
-MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, const QMap<QString, QPoint> mapGrid, const qint32 dampingFactor)
-{
-    QList<QPoint> coors = mapGrid.values();
-    MatrixXd topoMatrix = MatrixXd::Zero(gridPointMatrix.rows(), gridPointMatrix.cols());
-
-    for(qint32 y_axis = 0; y_axis < gridPointMatrix.rows(); y_axis++) //y_axis to interpolate among this axis
-    {
-        for(qint32 x_axis = 0; x_axis < gridPointMatrix.cols(); x_axis++) //x_axis to interpolate among this axis
-        {           
-            qint32 y= 0;
-            qint32 x = 0;
-
-            //don´t interpolate already given points
-            //if(coors.indexOf(QPoint(x_axis, y_axis)) > 0)
-            //    continue;
-
-            for(qint32 i = 0; i < coors.length(); i++)
-            {
-                x = coors[i].x(); //known Coordinate x
-                y = coors[i].y(); // known coordinate y
-
-                qreal scalar = 1 - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) / sqrt( pow(gridPointMatrix.cols(), 2) + pow(gridPointMatrix.rows(), 2)) ;
-                //qreal scalar = sqrt( pow(topoMatrix.cols(), 2) + pow(topoMatrix.rows(), 2)) - sqrt(pow((x - x_axis), 2) + pow((y - y_axis), 2)) ;
-
-                topoMatrix(y_axis, x_axis) += pow(scalar, dampingFactor) * gridPointMatrix(y,x);
-                //yxf(y_axis, x_axis) += pow(1-scalar,-2)*topoMatrix(y,x); decreasing is too fast
-                //yxf(y_axis, x_axis) += 1/pow(scalar,2)  *topoMatrix(y,x);
-                // * exp(-10*pow((scalar-1),2))                
-            }
-            //if(coors.length() != 0)
-            //   topoMatrix(y_axis, x_axis) /= coors.length(); //normalisation to number of known points
-        }
-    }
-
-    return topoMatrix;
-}
-
-//*************************************************************************************************************
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
