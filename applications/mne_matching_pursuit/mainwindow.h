@@ -679,11 +679,52 @@ private slots:
     void on_btt_playtopo_clicked();
 
     //==========================================================================================================
+    /**
+    * MainWindow_recieveView
+    *
+    * ### MP toolbox main window slots ###
+    *
+    * ???
+    *
+    * @param
+    *
+    * @return void
+    */
+    void recieveView(QImage image, qint32 play_time);
 
-    void recieveView(QImage image, qint32 play_time);   
+    //==========================================================================================================
+    /**
+    * MainWindow_on_cb_topocolormap_currentIndexChanged
+    *
+    * ### MP toolbox main window slots ###
+    *
+    * ???
+    *
+    * @param
+    *
+    * @return void
+    */
+    void on_cb_topocolormap_currentIndexChanged(int index);
+
+    //==========================================================================================================
+    /**
+    * MainWindow_on_btt_calc_topoplot_clicked
+    *
+    * ### MP toolbox main window slots ###
+    *
+    * ???
+    *
+    * @param
+    *
+    * @return void
+    */
+    void on_btt_calc_topoplot_clicked();
 
     //==========================================================================================================
 
+    void on_sb_toposolution_valueChanged(int arg1);
+
+    void on_sb_topodamping_valueChanged(int arg1);
 
 signals:
 
@@ -693,7 +734,7 @@ signals:
     void to_save(QString source_path, QString save_path, fiff_int_t start_change, fiff_int_t end_change, MatrixXd changes, MatrixXd original_signal, select_map select_channel_map, RowVectorXi picks, source_file_type file_type);
     void kill_save_thread();
     void sendtoTopoplot(const MatrixXd, const channelMap, const QSize, const QSize, const colorMaps, const qint32);
-    void send_play_input(imageList topo_images, qint32 play_time, qint32 max_play_time);
+    void send_play_input(imageList topo_images, qint32 play_time, qint32 max_play_time, qint32 showtime);
 
 private:
 
@@ -751,6 +792,7 @@ private:
     TFPlotScene*                 m_tfPlotScene;                          /**< Pointer to the selection scene class. */
     QList<TFPlotItemStruct> m_tfPlotItemStructList;
     QStringList             m_mappedLayoutChNames;                       /**< list of the mapped layout channel names. */
+    ColorMaps topo_colormaps;
 
 
 
@@ -1238,7 +1280,7 @@ public slots:
     *
     * @return   void
     */
-    void playTopoPlot(imageList topoImages, qint32 play_time, qint32 max_play_time);
+    void playTopoPlot(imageList topoImages, qint32 play_time, qint32 max_play_time, qint32 showtime);
 
 signals:
     //==========================================================================================================

@@ -34,5 +34,8 @@
         <file>icons/tf_symbol.png</file>
         <file>icons/play.png</file>
         <file>icons/stop.png</file>
+        <file>icons/head.png</file>
+        <file>icons/head2.png</file>
+        <file>icons/pause.png</file>
     </qresource>
 </RCC>

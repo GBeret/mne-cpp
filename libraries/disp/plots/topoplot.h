@@ -64,11 +64,13 @@ namespace DISPLIB
 
 struct TopoPlotInputData
 {
+    typedef ColorMaps colorMaps;
+
     Eigen::MatrixXd signalMatrix;
     quint32 iRangeLow;
     quint32 iRangeHigh;
     qint32 dampingFactor;
-    ColorMaps colorMap;
+    qint32 colorMap;
     QMap<QString, QPoint> topoMap;
     QSize topoMatrixSize;
     QSize imageSize;
@@ -217,7 +219,7 @@ protected:
     *
     * @return topoplot image
     */
-    static QImage * creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const ColorMaps cmap);
+    static QImage * creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const qint32 cmap);
 
     //==========================================================================================================
     /**
@@ -268,7 +270,7 @@ public slots:
     *
     * @return void
     */
-    void recieveInputStartCalculation(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const colorMaps cmap, const qint32 dampingFactor);
+    void recieveInputStartCalculation(const MatrixXd signalMatrix, const channelMap layoutMap, const QSize topoMatrixSize, const QSize imageSize, const ColorMaps cmap, const qint32 dampingFactor);
 
 signals:
 

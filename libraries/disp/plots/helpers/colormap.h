@@ -75,12 +75,12 @@ namespace DISPLIB
 
 enum ColorMaps
 {
-    Hot,
-    HotNeg1,
-    HotNeg2,
-    Jet,
-    Bone,
-    RedBlue
+    Hot = 0,
+    HotNeg1 = 1,
+    HotNeg2 = 2,
+    Jet = 3,
+    Bone = 4,
+    RedBlue = 5
 };
 
 //=============================================================================================================

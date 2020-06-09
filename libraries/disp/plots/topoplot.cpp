@@ -43,6 +43,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QtConcurrent>
+#include <QPainter>
 
 
 //*************************************************************************************************************
@@ -74,6 +75,8 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
 {
     QElapsedTimer timer;
     timer.start();
+    QElapsedTimer timer_all;
+    timer_all.start();
 
     QList<QImage> topoPlotImages;
     QMap<QString, QPoint> topoMap = createMapGrid(layoutMap, topoMatrixSize);
@@ -149,10 +152,12 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     iResidual = normTopoMatrixList.count()%iThreadSize;
 
     TopoPlotInputData topoImageTemp;
+    qRegisterMetaType<ColorMaps>("colorMaps");
     topoImageTemp.topoMatrixList = normTopoMatrixList;
     topoImageTemp.topoMatrixSize = topoMatrixSize;
     topoImageTemp.imageSize = imageSize;
-    topoMatrixTemp.colorMap = cmap;
+
+    topoImageTemp.colorMap = cmap;
 
     for (int i = 0; i < iThreadSize; ++i)
     {
@@ -168,11 +173,14 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     QFuture<QList<QImage>> topoImages = QtConcurrent::mappedReduced(topoImageData, createTopoPlotImages, reduceImages, QtConcurrent::OrderedReduce);
     topoImages.waitForFinished();
 
-    qDebug() << "make_topoImage: " << timer.elapsed() << " ms";
+    qDebug() << "make_topoImage: " << timer.elapsed() << " ms";    
+    qDebug() << "whole calculation time: " << timer_all.elapsed() << " ms";
+    qDebug() << "thread count: " << iThreadSize << " ";
+    timer.restart();
 
-    emit sendResult(topoImages.result(), true);
+    emit sendResult(topoImages.result(),true);
 
-    return topoImages.result();
+    return  topoImages.result();
 }
 
 //*************************************************************************************************************
@@ -193,11 +201,21 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
 
  QList<QImage> TopoPlot::createTopoPlotImages(const TopoPlotInputData& inputData)
  {
-     QList<QImage> imageList;    
+     QList<QImage> imageList;
+     QImage *head = new QImage(":/images/icons/head2.png");
      for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
      {
-         QImage * image = creatPlotImage(inputData.topoMatrixList.at(i), inputData.topoMatrixSize, Jet);
+         QImage * image = creatPlotImage(inputData.topoMatrixList.at(i), inputData.topoMatrixSize, inputData.colorMap);
          *image = image->scaledToHeight(qRound(inputData.imageSize.height() * 0.89), Qt::FastTransformation);
+
+         // merge with head-mask
+         if(head->width() != image->width() || head->height() != image->height() )
+            *head = head->scaled(image->width(),image->height());
+         QPainter painter(image);
+         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+         painter.drawImage(0,0, *head);
+         painter.end();
+
          imageList.append(*image);
          if(image != nullptr) delete image;
      }
@@ -259,7 +277,7 @@ QMap<QString,QPoint> TopoPlot::createMapGrid(QMap<QString,QPointF> layoutMap, QS
         coor.next();
         layoutMapGrid[coor.key()] = QPoint(qRound((coor.value().x() - minXCoor) / factorXCoor), qRound((coor.value().y() - minYCoor) / factorYCoor));
 
-        // just safty :)
+        // just safety :)
         if(layoutMapGrid[coor.key()].x() >= topo_matrix_size.width())
             layoutMapGrid[coor.key()].setX(topo_matrix_size.width() - 1);
         if(layoutMapGrid[coor.key()].y() >= topo_matrix_size.height())
@@ -300,6 +318,9 @@ MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, con
 {
     QList<QPoint> coors = mapGrid.values();
     MatrixXd topoMatrix = MatrixXd::Zero(gridPointMatrix.rows(), gridPointMatrix.cols());
+    QImage *head = new QImage(":/images/icons/head2.png");
+    *head = head->scaled(gridPointMatrix.rows(), gridPointMatrix.cols()); //(gridPointMatrix.rows() * 0.12) , gridPointMatrix.cols() + (gridPointMatrix.cols() * 0.12));
+    *head = head->mirrored(false, true);
 
     for(qint32 y_axis = 0; y_axis < gridPointMatrix.rows(); y_axis++) //y_axis to interpolate among this axis
     {
@@ -311,6 +332,10 @@ MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, con
             //don´t interpolate already given points
             //if(coors.indexOf(QPoint(x_axis, y_axis)) > 0)
             //    continue;
+
+            //don´t interpolate points out of head-cycle
+            if(head->pixel(x_axis,y_axis) == QColor(Qt::white).rgb()) // || head->pixel(x_axis,y_axis) == QColor(Qt::black).rgb())
+                continue;
 
             for(qint32 i = 0; i < coors.length(); i++)
             {
@@ -324,9 +349,7 @@ MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, con
                 //yxf(y_axis, x_axis) += pow(1-scalar,-2)*topoMatrix(y,x); decreasing is too fast
                 //yxf(y_axis, x_axis) += 1/pow(scalar,2)  *topoMatrix(y,x);
                 // * exp(-10*pow((scalar-1),2))
-            }
-            //if(coors.length() != 0)
-            //   topoMatrix(y_axis, x_axis) /= coors.length(); //normalisation to number of known points
+            }           
         }
     }
     return topoMatrix;
@@ -334,7 +357,7 @@ MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, con
 
 //*************************************************************************************************************
 
-QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const ColorMaps cmap)
+QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSize, const qint32 cmap)
 {
     qint32 y_factor =  topoMatrix.rows() / imageSize.height();
     qint32 x_factor =  topoMatrix.cols() / imageSize.width();
@@ -353,7 +376,7 @@ QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSi
     {
         ximage = 0;
         for ( qint32 x = 0; x < topoMatrix.cols(); x = x + x_factor )
-        {
+        {            
             switch  (cmap)
             {
                 case Jet:
@@ -374,6 +397,7 @@ QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSi
                 case RedBlue:
                     color.setRgb(ColorMap::valueToRedBlue(topoMatrix(y, x)));
                     break;
+               default:  color.setRgb(ColorMap::valueToJet((topoMatrix(y, x))));
             }
             if(ximage < topoImage->width() && yimage < topoImage->height())
                 topoImage->setPixel(ximage, topoImage->height() - 1 - yimage,  color.rgb());
@@ -381,6 +405,7 @@ QImage * TopoPlot::creatPlotImage(const MatrixXd topoMatrix, const QSize imageSi
         }
         yimage++;
     }
+
     return topoImage;
 }
 
