@@ -83,9 +83,7 @@ int main(int argc, char *argv[])
     QString selectionName("Vectorview-all.lout");
     QString path = QCoreApplication::applicationDirPath() + selectionName.prepend("/Resources/2DLayouts/");
     QMap<QString,QPointF> layoutMap;
-    LayoutLoader::readMNELoutFile(path, layoutMap);  
-
-
+    LayoutLoader::readMNELoutFile(path, layoutMap);
 
     //topoplot
     TopoPlot *create_plot = new TopoPlot();

@@ -310,3 +310,6 @@ contains(MNECPP_CONFIG, useFFTW) {
                 -lfftw3_threads \
     }
 }
+
+RESOURCES += \
+    resources.qrc

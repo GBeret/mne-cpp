@@ -77,7 +77,6 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     timer.start();
     QElapsedTimer timer_all;
     timer_all.start();
-
     QList<QImage> topoPlotImages;
     QMap<QString, QPoint> topoMap = createMapGrid(layoutMap, topoMatrixSize);
 
@@ -151,8 +150,7 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
     iStepsSize = normTopoMatrixList.count()/iThreadSize;
     iResidual = normTopoMatrixList.count()%iThreadSize;
 
-    TopoPlotInputData topoImageTemp;
-    qRegisterMetaType<ColorMaps>("colorMaps");
+    TopoPlotInputData topoImageTemp;  
     topoImageTemp.topoMatrixList = normTopoMatrixList;
     topoImageTemp.topoMatrixSize = topoMatrixSize;
     topoImageTemp.imageSize = imageSize;
@@ -202,7 +200,8 @@ QList<QImage> TopoPlot::createTopoPlotImageList(const MatrixXd signalMatrix, con
  QList<QImage> TopoPlot::createTopoPlotImages(const TopoPlotInputData& inputData)
  {
      QList<QImage> imageList;
-     QImage *head = new QImage(":/images/icons/head2.png");
+     Q_INIT_RESOURCE(resources);
+     QImage *head = new QImage(":/images/head_mask.png");
      for(qint32 i = inputData.iRangeLow; i < inputData.iRangeHigh; i++)
      {
          QImage * image = creatPlotImage(inputData.topoMatrixList.at(i), inputData.topoMatrixSize, inputData.colorMap);
@@ -318,7 +317,8 @@ MatrixXd TopoPlot::calcBilinearInterpolation(const MatrixXd gridPointMatrix, con
 {
     QList<QPoint> coors = mapGrid.values();
     MatrixXd topoMatrix = MatrixXd::Zero(gridPointMatrix.rows(), gridPointMatrix.cols());
-    QImage *head = new QImage(":/images/icons/head2.png");
+    Q_INIT_RESOURCE(resources);
+    QImage *head = new QImage(":/images/head_mask.png");
     *head = head->scaled(gridPointMatrix.rows(), gridPointMatrix.cols()); //(gridPointMatrix.rows() * 0.12) , gridPointMatrix.cols() + (gridPointMatrix.cols() * 0.12));
     *head = head->mirrored(false, true);
 
